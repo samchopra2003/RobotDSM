@@ -1,0 +1,32 @@
+*.sock
+*.lock
+*.json
+*.pyc
+
+Cookies
+Cookies-journal
+machineid
+"Network Persistent State"
+Preferences
+TransportSecurity
+
+__pycache__/
+Backups/
+blob_storage/
+Cache/
+CacheConfigurations/
+CachedData/
+CachedExtensionVSIXs/
+CachedProfilesData/
+"Code Cache/"
+Crashpad/
+DawnCache/
+Dictionaries/
+"Dynamic FSM/"
+GPUCache/
+helpers/
+"Local Storage/"
+logs/
+"Session Storage/"
+tests/
+User/

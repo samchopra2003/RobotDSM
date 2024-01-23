@@ -122,6 +122,8 @@ def main(pipe):
             if learn_command != '' and len(available_states) != 4:
                 # transition to LEARN
                 current_state_id = learn_state.get_pattern_id()
+                current_state = learn_state
+
                 learn_pattern = learn_command
                 learn_command = ''
             
@@ -130,11 +132,13 @@ def main(pipe):
                 walk_pattern_id in available_states:
                     # transition to WALK
                     current_state_id = walk_state.get_pattern_id()
+                    current_state = walk_state
                 
                 elif on_balance and not no_obstacle and \
                     crawl_pattern_id in available_states:
                     # transition to CRAWL
                     current_state_id = crawl_state.get_pattern_id()
+                    current_state = crawl_state
 
         # LEARN
         elif current_state_id == learn_state.get_pattern_id():
@@ -164,6 +168,7 @@ def main(pipe):
             learn_pattern = ''
             # once converged transition to IDLE
             current_state_id = idle_state.get_pattern_id()
+            current_state = idle_state
         
         # WALK
         elif walk_pattern_id in available_states:
@@ -175,6 +180,7 @@ def main(pipe):
                     ser.write(data_str.encode())
                 else:
                     current_state_id = idle_state.get_pattern_id()
+                    idle_state = idle_state
 
         # CRAWL
         elif crawl_pattern_id in available_states:
@@ -187,6 +193,7 @@ def main(pipe):
                     ser.write(data_str.encode())
                 else:
                     current_state_id = idle_state.get_pattern_id()
+                    current_state = idle_state
         
         if pipe.poll():
             x, y, z = pipe.recv()
@@ -204,8 +211,8 @@ def main(pipe):
             else:
                 on_balance = True
         
-        # poll camera
-        if cam.check_obstacle():
+        # poll camera if walk and jump states available (after learning)
+        if cam.check_obstacle() and len(available_states) > 2:
             no_obstacle = False
         else:
             no_obstacle = True

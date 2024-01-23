@@ -4,7 +4,6 @@ import os
 import numpy as np
 import glob
 import time
-from scipy.signal import find_peaks
 import matplotlib.pyplot as plt
 
 class Camera:

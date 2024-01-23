@@ -7,11 +7,12 @@ np.random.seed(seed = 10)
 walk_ideal = [[800,900,1000,1100,1200,1300,1400,1500,1600],[300,400,500,600,700,800,900,1000],[0,100,200,300,400,500,600,700],[1000,1100,1200,1300,1400,1500,1600,1700,1800]]
 walk_curr_conn = [[0,1,1,1],[1,0,1,1],[1,1,0,1],[1,1,1,0]]
 
-jump_ideal = [[0,100,200,300,400,500,600,700],[0,100,200,300,400,500,600,700],[800,900,1000,1100,1200,1300,1400,1500,1600],[800,900,1000,1100,1200,1300,1400,1500,1600]]
-jump_curr_conn = [[0,1,0,0],[1,0,0,0],[0,0,0,0],[0,0,0,0]]
+crawl_ideal = [[0,100,200,300,400,500,600,700],[0,100,200,300,400,500,600,700],[800,900,1000,1100,1200,1300,1400,1500,1600],[800,900,1000,1100,1200,1300,1400,1500,1600]]
+crawl_curr_conn = [[1,0,1,1],[0,1,1,1],[1,1,1,0],[1,1,0,1]]
 
 b=2
-st_time = 10000
+st_time = 5000
+lr = 0.0001
 
 vm1_0, vf1_0, vs1_0, vus1_0 = -1,0,0,0
 vm2_0, vf2_0, vs2_0, vus2_0 = -1,0,0,0
@@ -161,6 +162,14 @@ def newton(f,Jf,x0,epsilon,max_iter):
     return [None,CF]
 
 def train_bdf_second(pattern_id, ser, f=f, y0=S_0, h=1, ti=0, tf=40000):
+    W_ideal = []
+    if pattern_id == 1: # WALK
+        W_ideal = walk_ideal
+        curr_conn = walk_curr_conn
+    else:   # crawl
+        W_ideal = crawl_ideal
+        curr_conn = crawl_curr_conn
+
     # Initializing
     N=int((tf-ti)//h) # Number of steps
     t=np.linspace(ti,tf,N) # Timestep vector
@@ -216,7 +225,8 @@ def train_bdf_second(pattern_id, ser, f=f, y0=S_0, h=1, ti=0, tf=40000):
     #============================================================================================================================
 
     actual_spike_ctr = [0, 0, 0, 0]
-    for i in tqdm(range(0, N - 2)):
+    for i in tqdm(range(0, N-2)):
+        one_hot_encoded = np.zeros(5)
         # g, Next value function.
         def g(S):
             # Next value of state variables, vmn = vm(k+1)
@@ -261,11 +271,12 @@ def train_bdf_second(pattern_id, ser, f=f, y0=S_0, h=1, ti=0, tf=40000):
             for k in range(int(len(y0))):
                 y[k][i+2] = root[0][k]
                 if k%4==0:
+                    cur_neu = int(k/4)
                     if y[k][i+2] > Vthresh and y[k][i+1] < Vthresh:
-                        eventp[int(k/4)].append(i+2)
-                        actual_spike_ctr[int(k/4)] += 1
+                        eventp[cur_neu].append(i+2)
+                        actual_spike_ctr[cur_neu] += 1
                     
-                    if actual_spike_ctr[int(k/4)] >= 8:     # 8 spikes/burst
+                    if actual_spike_ctr[cur_neu] >= 8:     # 8 spikes/burst
                         actual_spike_ctr[cur_neu] = 0
                         one_hot_encoded[cur_neu] = 1
 
@@ -283,7 +294,6 @@ def train_bdf_second(pattern_id, ser, f=f, y0=S_0, h=1, ti=0, tf=40000):
             # Training
             for cur_neu in range(int(N_neurons)):
                 for conn in range(N_neurons):
-                    one_hot_encoded = np.zeros(5)
                     # WALK
                     if pattern_id == 1:
                         one_hot_encoded[4] = 0
@@ -292,12 +302,20 @@ def train_bdf_second(pattern_id, ser, f=f, y0=S_0, h=1, ti=0, tf=40000):
                         one_hot_encoded[4] = 1
 
                     if conn != cur_neu:
-                        if (abs(walk_ideal[cur_neu][cur_spk[cur_neu]]-(eventp[cur_neu][-1]-st_time)%1600)>100) and walk_curr_conn[cur_neu][conn]==1:
+                        # if (abs(walk_ideal[cur_neu][cur_spk[cur_neu]]-(eventp[cur_neu][-1]-st_time)
+                        #         %1600)>100) and walk_curr_conn[cur_neu][conn]==1:
+                        if (abs(W_ideal[cur_neu][cur_spk[cur_neu]]-(eventp[cur_neu][-1] - st_time)
+                                % 1600) > 100) and curr_conn[cur_neu][conn]==1:
                             #asyn_ideal = asyn
-                            asyn[cur_neu][conn] = -0.75*sf(asyn[cur_neu][conn]+train_STDP(0.0001,((eventp[cur_neu][-1]-st_time)%1600),walk_ideal[cur_neu][cur_spk[cur_neu]],100),1,0)
-                        elif walk_curr_conn[cur_neu][conn]==0:
+                            asyn[cur_neu][conn] = -0.75 * sf(asyn[cur_neu][conn]+train_STDP(lr,
+                                ((eventp[cur_neu][-1] - st_time) % 1600), W_ideal[cur_neu]
+                                [cur_spk[cur_neu]],100), 1, 0)
+                        # elif walk_curr_conn[cur_neu][conn]==0:
+                        elif curr_conn[cur_neu][conn]==0:
                             #asyn_ideal = asyn
-                            asyn[cur_neu][conn] = 0.75*sf(asyn[cur_neu][conn]+train_STDP(0.0001,((eventp[cur_neu][-1]-st_time)%1600),walk_ideal[cur_neu][cur_spk[cur_neu]],100),1,0)
+                            asyn[cur_neu][conn] = 0.75 * sf(asyn[cur_neu][conn]+train_STDP(lr,
+                                ((eventp[cur_neu][-1] - st_time) % 1600), W_ideal[cur_neu]
+                                [cur_spk[cur_neu]], 100), 1, 0)
                     
                     cur_spk[cur_neu] += 1
                     if cur_spk[cur_neu] == 8:

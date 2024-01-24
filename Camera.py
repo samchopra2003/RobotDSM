@@ -20,7 +20,7 @@ class Camera:
         
         
         
-    def _take_picture_(self):
+    def _take_picture_(self):   # deprecated
         image_path = f"./img/img{self.num-2}.png"
         if os.path.exists(image_path):
             os.remove(image_path)
@@ -48,13 +48,16 @@ class Camera:
     
     def check_obstacle(self) -> bool:
         """ Returns if True if obstacle detected. """
-        success = self._take_picture_()
-        if not success:
-            print("Frame not taken successfully")
-            return False
+        cap = cv2.VideoCapture(0)
+
+        success, image = cap.read()
+            
         
-        image = cv2.imread(f"./img/img{self.num-1}.png")
-        print(image.shape)
+        if not success:
+            cap.release()
+            cv2.destroyAllWindows()
+        
+            return False
         
         # Define the coordinates of the center 100x100 window
         center_x = 260  # Adjust the X-coordinate to position the window as needed
@@ -70,16 +73,10 @@ class Camera:
         # Create a binary image where edges are detected (edges) or not (background)
         binary_edges = cv2.threshold(edges, 0, 255, cv2.THRESH_BINARY)[1]
         # Check if any white pixels (edges) are present
+        
+        cap.release()
+        cv2.destroyAllWindows()
+        
         if cv2.countNonZero(binary_edges) > 0:
-            print("Obstacle detected in cam")
             return True
         return False
-    
-        #cv2.imshow('Edges', binary_edges)
-        #cv2.waitKey(0)
-        #cv2.destroyAllWindows()
-        
-    
-# if __name__ == "__main__":    
-#     cam = Camera()
-#     cam.check_obstacle()

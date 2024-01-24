@@ -9,7 +9,7 @@ class Network:
         alpha=[-2, 2, -1.5, 2], delta=[0, 0, -0.88, 0], 
         beta=[-2, 2, -1.5, 2], Cm = 1, Iapp=[-2, -2, -2, -2], 
         tauf=1, taus=50, tauus=50*50, R=1,
-        dT=1, Erev=0.48, Vthresh=2.5, scale=1, tmax=100000):
+        dT=1, Erev=0.48, Vthresh=1.3, scale=1, tmax=100000):
         self.W = W
         self.N_neurons = N_neurons
         self.Iapp = Iapp

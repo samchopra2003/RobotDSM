@@ -34,7 +34,7 @@ alpha=[-2,2,-1.5,1.5]
 # [df-,ds+,ds-,dus+]
 delta=[0,0,-1.5,-1.5]
 
-Tf,Ts,Tus=1,50,2500
+Tf, Ts, Tus = 1, 5, 250
 
 # dsdt= f(t,vm,vf,vs,vus)
 def f(S):

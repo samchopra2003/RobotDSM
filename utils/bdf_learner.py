@@ -161,7 +161,7 @@ def newton(f,Jf,x0,epsilon,max_iter):
     print('Exceeded maximum iterations. No solution found.')
     return [None,CF]
 
-def train_bdf_second(pattern_id, ser, f=f, y0=S_0, h=1, ti=0, tf=40000):
+def train_bdf_second(pattern_id, ser, f=f, y0=S_0, h=1, ti=0, tf=10):
     W_ideal = []
     if pattern_id == 1: # WALK
         W_ideal = walk_ideal

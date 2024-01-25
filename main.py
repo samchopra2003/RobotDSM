@@ -38,8 +38,8 @@ N_neurons = 4
 
 state_command = ''
 state_name = ''
-# spikes_per_burst = 3
-spikes_per_burst = 1
+spikes_per_burst = 3
+
 
 def on_press(key):
     try:
@@ -107,7 +107,7 @@ def main(pipe):
     actual_spike_ctr = [0, 0, 0, 0]
 
     steps = 2   # number of steps to compute evolve for
-    steps_spiked_neurons = []   # spiked_neurons (steps, N_neurons)
+    steps_spiked_neurons = np.zeros((steps, N_neurons))   # spiked_neurons (steps, N_neurons)
 
     autonomous = False
 
@@ -204,13 +204,13 @@ def main(pipe):
             #     y_list.append(y)
             #     z_list.append(z)
             
-
-            if t % steps == 0:  # evolve network every t steps as we are computing for t steps
+            if t % steps == 0 :  # evolve network every t steps as we are computing for t steps
                 print('From main: ' ,current_state.get_pattern_id())
                 steps_spiked_neurons = network.evolve(t, current_state, use_bdf=True, steps=steps)
-                spiked_neurons = steps_spiked_neurons[t % steps]    # 2%2 = 0, 3%2 = 1
-
-            print("Neurons spiked = ", spiked_neurons)
+            
+            spiked_neurons = steps_spiked_neurons[t % steps]    # 2%2 = 0, 3%2 = 1
+            
+            print("Neurons spiked main= ", spiked_neurons)
 
             # move once burst finishes
             for cur_neu in range(N_neurons):
@@ -242,6 +242,7 @@ def main(pipe):
                     one_hot_encoded[4] = 0
                     data_str = ','.join(map(str, one_hot_encoded.astype(int))) + '\n'
                     ser.write(data_str.encode())
+                    time.sleep(0.1)
                 else:
                     current_state_id = idle_state.get_pattern_id()
                     idle_state = idle_state
@@ -254,12 +255,11 @@ def main(pipe):
                     one_hot_encoded[4] = 1
                     data_str = ','.join(map(str, one_hot_encoded.astype(int))) + '\n'
                     ser.write(data_str.encode())
+                    time.sleep(0.1)
                 else:
                     current_state_id = idle_state.get_pattern_id()
                     current_state = idle_state
 
-        
-            
             # if len(x_list) >= 5:
             #     if not check_gyro_balance(x_list, y_list, z_list):
             #         on_balance = False
@@ -273,6 +273,7 @@ def main(pipe):
             # else:
             #     no_obstacle = True
             # no_obstacle = True
+
             # IDLE
             elif current_state_id == idle_state.get_pattern_id():
                 print("State: IDLE")
@@ -280,7 +281,6 @@ def main(pipe):
 
                 if on_balance and no_obstacle and \
                     walk_pattern_id in available_states:
-                        print('HERE BRO!!!')
                         # transition to WALK
                         current_state_id = walk_state.get_pattern_id()
                         current_state = walk_state
@@ -295,11 +295,10 @@ def main(pipe):
             on_balance = True
             no_obstacle = True
             
-
             #TODO: Extend for autonomous navigation
 
         else:
-            print("Non-automous IDLE")
+            print("State: IDLE")
     
         state_command = ''
         cap.release()

@@ -2,6 +2,9 @@ import numpy as np
 from tqdm import tqdm
 from multiprocessing import Process, Pipe
 
+import cv2
+import time
+
 import serial
 import glob
 import os
@@ -30,12 +33,13 @@ crawl_spike_times = [[0,100,200,300,400,500,600,700],[0,100,
 idle_weights = [[0, 0, 0, 0], [0, 0, 0, 0],
                 [0, 0, 0, 0], [0, 0, 0, 0]]
 
-TMAX = 100000
+TMAX = 1000000
 N_neurons = 4
 
 state_command = ''
 state_name = ''
-spikes_per_burst = 3
+# spikes_per_burst = 3
+spikes_per_burst = 1
 
 def on_press(key):
     try:
@@ -60,6 +64,8 @@ def on_press(key):
 
 
 def main(pipe):
+
+    cap = cv2.VideoCapture(0)
     ser = serial.Serial('/dev/ttyUSB0', 9600)
     ser.reset_input_buffer()
 
@@ -121,6 +127,9 @@ def main(pipe):
             current_state_id = idle_state.get_pattern_id()
         elif state_command == 's':
             autonomous = True
+            print('Starting autonomous navigation!')
+            current_state = idle_state
+            current_state_id = idle_state.get_pattern_id()
 
 
         # DSM
@@ -134,12 +143,14 @@ def main(pipe):
                 # walk_spike_times, curr_conn = np.loadtxt(pattern_file)
                 walk_weights, V_state = pattern_learner.learn(walk_spike_times,
                         curr_conn, ser, walk_pattern_id, use_bdf=True)
-                walk_weights = np.array([[0,-0.3,-0.3,-0.3],
-                                [-0.3,0,-0.3,-0.3],
-                                [-0.3,-0.3,0,-0.3],
-                                [-0.3,-0.3,-0.3,0]])
+                # walk_weights = np.array([[0,-0.3,-0.3,-0.3],
+                #                 [-0.3,0,-0.3,-0.3],
+                #                 [-0.3,-0.3,0,-0.3],
+                #                 [-0.3,-0.3,-0.3,0]])
+                # print()
                 walk_state = AbstractState(pattern_id=walk_pattern_id,
                         weights=walk_weights, V_state=V_state)
+                
                 available_states.append(walk_pattern_id)
 
                 pipe.send("Finished learning")
@@ -152,12 +163,9 @@ def main(pipe):
                 # crawl_spike_times, curr_conn= np.loadtxt(pattern_file)
                 crawl_weights, V_state = pattern_learner.learn(crawl_spike_times,
                         curr_conn, ser, crawl_pattern_id, use_bdf=True)
-                crawl_weights = np.array([[0,0.3,-0.3,-0.3],
-                                        [0.3,0,-0.3,-0.3],
-                                        [-0.3,-0.3,0,0.3],
-                                        [-0.3,-0.3,0.3,0]])
                 crawl_state = AbstractState(pattern_id=crawl_pattern_id,
                         weights=crawl_weights, V_state=V_state)
+                
                 available_states.append(crawl_pattern_id)
 
                 pipe.send("Finished learning")
@@ -180,21 +188,25 @@ def main(pipe):
             # # once converged transition to IDLE
             # current_state_id = idle_state.get_pattern_id()
             # current_state = idle_state
-        
-        # IDLE
-        elif current_state_id == idle_state.get_pattern_id():
-            print("State: IDLE")
-            network.set_weights(idle_state.get_weights())
-
-            #TODO: Extend for autonomous navigation
 
         # AUTONOMOUS PHASE
         elif autonomous and walk_pattern_id in available_states and crawl_pattern_id in available_states:
-            print('Starting autonomous navigation!')
+            
             one_hot_encoded = np.zeros(5)   # [neu1, neu2, neu3, neu4, motorCmdFlag]
             spiked_neurons = np.zeros(4)
 
+            # if pipe.poll():
+            #     x, y, z = pipe.recv()
+            #     x -= x_init
+            #     y -= y_init
+            #     z -= z_init
+            #     x_list.append(x)
+            #     y_list.append(y)
+            #     z_list.append(z)
+            
+
             if t % steps == 0:  # evolve network every t steps as we are computing for t steps
+                print('From main: ' ,current_state.get_pattern_id())
                 steps_spiked_neurons = network.evolve(t, current_state, use_bdf=True, steps=steps)
                 spiked_neurons = steps_spiked_neurons[t % steps]    # 2%2 = 0, 3%2 = 1
 
@@ -209,69 +221,89 @@ def main(pipe):
                     actual_spike_ctr[cur_neu] = 0
                     one_hot_encoded[cur_neu] = 1
 
+            # if on_balance and no_obstacle and \
+            #         walk_pattern_id in available_states:
+            #             # transition to WALK
+            #             current_state_id = walk_state.get_pattern_id()
+            #             current_state = walk_state
+                
+            # elif on_balance and not no_obstacle and \
+            #         crawl_pattern_id in available_states:
+            #             # transition to CRAWL
+            #             current_state_id = crawl_state.get_pattern_id()
+            #             current_state = crawl_state
+
             # WALK
-            if walk_pattern_id in available_states:
-                if current_state_id == walk_state.get_pattern_id():
-                    print("State: WALK")
-                    network.set_weights(walk_state.get_weights())
-                    if on_balance and no_obstacle:
-                        data_str = ','.join(map(str, one_hot_encoded.astype(int))) + '\n'
-                        ser.write(data_str.encode())
-                    else:
-                        current_state_id = idle_state.get_pattern_id()
-                        idle_state = idle_state
+            if current_state_id == walk_state.get_pattern_id():
+                print("State: WALK")
+                network.set_weights(walk_state.get_weights())
+                # if on_balance and no_obstacle and not np.all(one_hot_encoded[:4] == 0):
+                if not np.all(one_hot_encoded[:4] == 0):
+                    one_hot_encoded[4] = 0
+                    data_str = ','.join(map(str, one_hot_encoded.astype(int))) + '\n'
+                    ser.write(data_str.encode())
+                else:
+                    current_state_id = idle_state.get_pattern_id()
+                    idle_state = idle_state
 
             # CRAWL
-            elif crawl_pattern_id in available_states:
-                if current_state_id == crawl_state.get_pattern_id():
-                    print("State: CRAWL")
-                    network.set_weights(crawl_state.get_weights())
-                    if on_balance and no_obstacle:
-                        one_hot_encoded[4] = 1
-                        data_str = ','.join(map(str, one_hot_encoded.astype(int))) + '\n'
-                        ser.write(data_str.encode())
-                    else:
-                        current_state_id = idle_state.get_pattern_id()
-                        current_state = idle_state
-
-            else:
-                if on_balance and no_obstacle and \
-                    walk_pattern_id in available_states:
-                        # transition to WALK
-                        current_state_id = walk_state.get_pattern_id()
-                        current_state = walk_state
-                
-                elif on_balance and not no_obstacle and \
-                    crawl_pattern_id in available_states:
-                    # transition to CRAWL
-                    current_state_id = crawl_state.get_pattern_id()
-                    current_state = crawl_state
-        
-            if pipe.poll():
-                x, y, z = pipe.recv()
-                x -= x_init
-                y -= y_init
-                z -= z_init
-                x_list.append(x)
-                y_list.append(y)
-                z_list.append(z)
-
-        
-            if len(x_list) >= 5:
-                if not check_gyro_balance(x_list, y_list, z_list):
-                    on_balance = False
+            elif current_state_id == crawl_state.get_pattern_id():
+                print("State: CRAWL")
+                network.set_weights(crawl_state.get_weights())
+                if on_balance and not no_obstacle and not np.all(one_hot_encoded[:4] == 0):
+                    one_hot_encoded[4] = 1
+                    data_str = ','.join(map(str, one_hot_encoded.astype(int))) + '\n'
+                    ser.write(data_str.encode())
                 else:
-                    on_balance = True
+                    current_state_id = idle_state.get_pattern_id()
+                    current_state = idle_state
+
+        
+            
+            # if len(x_list) >= 5:
+            #     if not check_gyro_balance(x_list, y_list, z_list):
+            #         on_balance = False
+            #     else:
+            #         on_balance = True
             # on_balance = True
             
             # poll camera if walk and jump states available (after learning)
-            if cam.check_obstacle():
-                no_obstacle = False
-            else:
-                no_obstacle = True
+            # if cam.check_obstacle(cap):
+            #     no_obstacle = False
+            # else:
+            #     no_obstacle = True
             # no_obstacle = True
+            # IDLE
+            elif current_state_id == idle_state.get_pattern_id():
+                print("State: IDLE")
+                network.set_weights(idle_state.get_weights())
+
+                if on_balance and no_obstacle and \
+                    walk_pattern_id in available_states:
+                        print('HERE BRO!!!')
+                        # transition to WALK
+                        current_state_id = walk_state.get_pattern_id()
+                        current_state = walk_state
+
+                    
+                elif on_balance and not no_obstacle and \
+                    crawl_pattern_id in available_states:
+                        # transition to CRAWL
+                        current_state_id = crawl_state.get_pattern_id()
+                        current_state = crawl_state
+
+            on_balance = True
+            no_obstacle = True
+            
+
+            #TODO: Extend for autonomous navigation
+
+        else:
+            print("Non-automous IDLE")
     
-    state_command = ''
+        state_command = ''
+        cap.release()
+        cv2.destroyAllWindows()
         
 
         

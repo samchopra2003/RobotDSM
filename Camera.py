@@ -46,9 +46,9 @@ class Camera:
         
         return True
     
-    def check_obstacle(self) -> bool:
+    def check_obstacle(self,cap) -> bool:
         """ Returns if True if obstacle detected. """
-        cap = cv2.VideoCapture(0)
+        #cap = cv2.VideoCapture(0)
 
         success, image = cap.read()
             

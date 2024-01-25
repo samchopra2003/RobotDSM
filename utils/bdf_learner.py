@@ -6,13 +6,19 @@ np.random.seed(seed = 10)
 
 walk_ideal = [[800,900,1000,1100,1200,1300,1400,1500,1600],[300,400,500,600,700,800,900,1000],[0,100,200,300,400,500,600,700],[1000,1100,1200,1300,1400,1500,1600,1700,1800]]
 walk_curr_conn = [[0,1,1,1],[1,0,1,1],[1,1,0,1],[1,1,1,0]]
+walk_seed = 10
 
 crawl_ideal = [[0,100,200,300,400,500,600,700],[0,100,200,300,400,500,600,700],[800,900,1000,1100,1200,1300,1400,1500,1600],[800,900,1000,1100,1200,1300,1400,1500,1600]]
 crawl_curr_conn = [[1,0,1,1],[0,1,1,1],[1,1,1,0],[1,1,0,1]]
+crawl_seed = 1
 
 b=2
-st_time = 5000
-lr = 0.0001
+# st_time = 50
+st_time = int(5e3)
+lr = 5
+
+TF = int(1e4)
+# TF = 100
 
 vm1_0, vf1_0, vs1_0, vus1_0 = -1,0,0,0
 vm2_0, vf2_0, vs2_0, vus2_0 = -1,0,0,0
@@ -25,14 +31,19 @@ S_0 = (vm1_0, vf1_0, vs1_0, vus1_0,
        vm4_0, vf4_0, vs4_0, vus4_0)
 
 
-asyn_ideal = np.array([[0,-0.3,-0.3,-0.3],
-               [-0.3,0,-0.3,-0.3],
-               [-0.3,-0.3,0,-0.3],
-               [-0.3,-0.3,-0.3,0]])
+asyn_ideal_walk = np.array([[0,-0.3,-0.3,-0.3],
+                            [-0.3,0,-0.3,-0.3],
+                            [-0.3,-0.3,0,-0.3],
+                            [-0.3,-0.3,-0.3,0]])
+
+asyn_ideal_crawl = np.array([[0,0.3,-0.3,-0.3],
+                            [0.3,0,-0.3,-0.3],
+                            [-0.3,-0.3,0,0.3],
+                            [-0.3,-0.3,0.3,0]])
 
 
-asyn = np.random.normal(loc=0.0, scale=0.3,size=(4,4))  #np.random.rand(4,4)
-np.fill_diagonal(asyn, 0)
+# asyn = np.random.normal(loc=0.0, scale=0.3,size=(4,4))
+# np.fill_diagonal(asyn, 0)
 
 dsyn=np.array([[0,-1,-1,-1],
                [-1,0,-1,-1],
@@ -42,7 +53,7 @@ dsyn=np.array([[0,-1,-1,-1],
 Iapp = 1.5 * np.array([-1,-1,-1,-1])
 N_neurons = 4
 Vthresh=2
-cur_spk = [0,0,0,0]
+cur_spk = [0, 0, 0, 0]
 eventp = []
 for i in range(N_neurons):
     eventp.append([])
@@ -70,7 +81,7 @@ def d_sf(asyn,x,b,ds):
 
 
 # dsdt= f(t,vm,vf,vs,vus)
-def f(S):
+def f(S, asyn):
     vm1, vf1, vs1, vus1, vm2, vf2, vs2, vus2, vm3, vf3, vs3, vus3, vm4, vf4, vs4, vus4 = S
     Isyn1=Iapp[0]+asyn[1][0]*sf(vs2,b,dsyn[1][0])+asyn[2][0]*sf(vs3,b,dsyn[2][0])+asyn[3][0]*sf(vs4,b,dsyn[3][0])
     Isyn2=Iapp[1]+asyn[0][1]*sf(vs1,b,dsyn[0][1])+asyn[2][1]*sf(vs3,b,dsyn[2][1])+asyn[3][1]*sf(vs4,b,dsyn[3][1])
@@ -81,7 +92,7 @@ def f(S):
             -vm3-alpha[0]*np.tanh(vf3-delta[0])-alpha[1]*np.tanh(vs3-delta[1])-alpha[2]*np.tanh(vs3-delta[2])-alpha[3]*np.tanh(vus3-delta[3])+Isyn3,(vm3-vf3)/Tf,(vm3-vs3)/Ts,(vm3-vus3)/Tus,
             -vm4-alpha[0]*np.tanh(vf4-delta[0])-alpha[1]*np.tanh(vs4-delta[1])-alpha[2]*np.tanh(vs4-delta[2])-alpha[3]*np.tanh(vus4-delta[3])+Isyn4,(vm4-vf4)/Tf,(vm4-vs4)/Ts,(vm4-vus4)/Tus]
 
-def df(S):
+def df(S, asyn):
     vm1, vf1, vs1, vus1, vm2, vf2, vs2, vus2, vm3, vf3, vs3, vus3, vm4, vf4, vs4, vus4 = S
     return [[-1,-alpha[0]*(1-np.tanh(vf1-delta[0])**2),-alpha[1]*(1-np.tanh(vs1-delta[1])**2)-alpha[2]*(1-np.tanh(vs1-delta[2])**2),-alpha[3]*(1-np.tanh(vus1-delta[3])**2),0,0,d_sf(asyn[1][0],vs2,b,dsyn[1][0]),0,0,0,d_sf(asyn[2][0],vs3,b,dsyn[2][0]),0,0,0,d_sf(asyn[3][0],vs4,b,dsyn[3][0]),0],
             [(1/Tf),(-1/Tf),0,0,0,0,0,0,0,0,0,0,0,0,0,0],
@@ -161,14 +172,25 @@ def newton(f,Jf,x0,epsilon,max_iter):
     print('Exceeded maximum iterations. No solution found.')
     return [None,CF]
 
-def train_bdf_second(pattern_id, ser, f=f, y0=S_0, h=1, ti=0, tf=10):
+def train_bdf_second(pattern_id, ser, f=f, y0=S_0, h=1, ti=0, tf=TF, wt_train_check = np.zeros((4,4))):
     W_ideal = []
+    tolerance = 0
     if pattern_id == 1: # WALK
         W_ideal = walk_ideal
         curr_conn = walk_curr_conn
-    else:   # crawl
+        asyn_ideal = asyn_ideal_walk
+        np.random.seed(seed = walk_seed)
+        tolerance = 0.017
+
+    elif pattern_id == 2:   # crawl
         W_ideal = crawl_ideal
         curr_conn = crawl_curr_conn
+        asyn_ideal = asyn_ideal_crawl
+        np.random.seed(seed = crawl_seed)
+        tolerance = 0.043
+
+    asyn = np.random.normal(loc=0.0, scale=0.3,size=(4,4))  #np.random.rand(4,4)
+    np.fill_diagonal(asyn, 0) 
 
     # Initializing
     N=int((tf-ti)//h) # Number of steps
@@ -184,7 +206,7 @@ def train_bdf_second(pattern_id, ser, f=f, y0=S_0, h=1, ti=0, tf=10):
             # Next value of state variables, vmn = vm(k+1)
             vmn1, vfn1, vsn1, vusn1, vmn2, vfn2, vsn2, vusn2, vmn3, vfn3, vsn3, vusn3, vmn4, vfn4, vsn4, vusn4 = S
             # Next value of state variable, fvmn = f(t[i+1],S)
-            fvmn1, fvfn1, fvsn1, fvusn1, fvmn2, fvfn2, fvsn2, fvusn2, fvmn3, fvfn3, fvsn3, fvusn3, fvmn4, fvfn4, fvsn4, fvusn4 = f(S)
+            fvmn1, fvfn1, fvsn1, fvusn1, fvmn2, fvfn2, fvsn2, fvusn2, fvmn3, fvfn3, fvsn3, fvusn3, fvmn4, fvfn4, fvsn4, fvusn4 = f(S, asyn)
 
             return np.array([vmn1-(h*fvmn1)-y[0][i],vfn1-(h*fvfn1)-y[1][i],vsn1-(h*fvsn1)-y[2][i],vusn1-(h*fvusn1)-y[3][i],
                              vmn2-(h*fvmn2)-y[4][i],vfn2-(h*fvfn2)-y[5][i],vsn2-(h*fvsn2)-y[6][i],vusn2-(h*fvusn2)-y[7][i],
@@ -193,7 +215,7 @@ def train_bdf_second(pattern_id, ser, f=f, y0=S_0, h=1, ti=0, tf=10):
 
         def Jg(S):
             # next value of state variables, vmn = vm(n+1)
-            Jf=df(S)
+            Jf=df(S, asyn)
             return np.array([[1-h*Jf[0][0],-h*Jf[0][1],-h*Jf[0][2],-h*Jf[0][3],-h*Jf[0][4],-h*Jf[0][5],-h*Jf[0][6],-h*Jf[0][7],-h*Jf[0][8],-h*Jf[0][9],-h*Jf[0][10],-h*Jf[0][11],-h*Jf[0][12],-h*Jf[0][13],-h*Jf[0][14],-h*Jf[0][15]],
                              [-h*Jf[1][0],1-h*Jf[1][1],-h*Jf[1][2],-h*Jf[1][3],-h*Jf[1][4],-h*Jf[1][5],-h*Jf[1][6],-h*Jf[1][7],-h*Jf[1][8],-h*Jf[1][9],-h*Jf[1][10],-h*Jf[1][11],-h*Jf[1][12],-h*Jf[1][13],-h*Jf[1][14],-h*Jf[1][15]],
                              [-h*Jf[2][0],-h*Jf[2][1],1-h*Jf[2][2],-h*Jf[2][3],-h*Jf[2][4],-h*Jf[2][5],-h*Jf[2][6],-h*Jf[2][7],-h*Jf[2][8],-h*Jf[2][9],-h*Jf[2][10],-h*Jf[2][11],-h*Jf[2][12],-h*Jf[2][13],-h*Jf[2][14],-h*Jf[2][15]],
@@ -227,12 +249,16 @@ def train_bdf_second(pattern_id, ser, f=f, y0=S_0, h=1, ti=0, tf=10):
     actual_spike_ctr = [0, 0, 0, 0]
     for i in tqdm(range(0, N-2)):
         one_hot_encoded = np.zeros(5)
+
+        if (i % 5000) == 0:
+            print(asyn)
+
         # g, Next value function.
         def g(S):
             # Next value of state variables, vmn = vm(k+1)
             vmn1, vfn1, vsn1, vusn1, vmn2, vfn2, vsn2, vusn2, vmn3, vfn3, vsn3, vusn3, vmn4, vfn4, vsn4, vusn4 = S
             # Next value of state variable, fvmn = f(t[i+1],S)
-            fvmn1, fvfn1, fvsn1, fvusn1, fvmn2, fvfn2, fvsn2, fvusn2, fvmn3, fvfn3, fvsn3, fvusn3, fvmn4, fvfn4, fvsn4, fvusn4 = f(S)
+            fvmn1, fvfn1, fvsn1, fvusn1, fvmn2, fvfn2, fvsn2, fvusn2, fvmn3, fvfn3, fvsn3, fvusn3, fvmn4, fvfn4, fvsn4, fvusn4 = f(S, asyn)
             cf1 = (2/3)
             cf2 = (4/3)
             cf3 = (1/3)
@@ -243,7 +269,7 @@ def train_bdf_second(pattern_id, ser, f=f, y0=S_0, h=1, ti=0, tf=10):
 
         def Jg(S):
             # next value of state variables, vmn = vm(n+1)
-            Jf=df(S)
+            Jf=df(S, asyn)
             CF=2/3
             return np.array([[1-CF*h*Jf[0][0],-CF*h*Jf[0][1],-CF*h*Jf[0][2],-CF*h*Jf[0][3],-CF*h*Jf[0][4],-CF*h*Jf[0][5],-CF*h*Jf[0][6],-CF*h*Jf[0][7],-CF*h*Jf[0][8],-CF*h*Jf[0][9],-CF*h*Jf[0][10],-CF*h*Jf[0][11],-CF*h*Jf[0][12],-CF*h*Jf[0][13],-CF*h*Jf[0][14],-CF*h*Jf[0][15]],
                              [-CF*h*Jf[1][0],1-CF*h*Jf[1][1],-CF*h*Jf[1][2],-CF*h*Jf[1][3],-CF*h*Jf[1][4],-CF*h*Jf[1][5],-CF*h*Jf[1][6],-CF*h*Jf[1][7],-CF*h*Jf[1][8],-CF*h*Jf[1][9],-CF*h*Jf[1][10],-CF*h*Jf[1][11],-CF*h*Jf[1][12],-CF*h*Jf[1][13],-CF*h*Jf[1][14],-CF*h*Jf[1][15]],
@@ -283,17 +309,23 @@ def train_bdf_second(pattern_id, ser, f=f, y0=S_0, h=1, ti=0, tf=10):
         else:
             print('No solution found')
 
-        if (i+2)>=st_time:
+        if (i+2) >= st_time:
             # global asyn_ideal
 
-            # Training Termination Check (tolerance < threshold)
-            if np.allclose(asyn_ideal, asyn, atol=0.0163) == True:
+            if np.sum(wt_train_check) == 16:
                 # converged weights, latest voltages (state)
-                return asyn, tuple([y[i][-1] for i in range(len(y))])
+                print("CONV WEIGHTS", asyn)
+                print("CONV STATE", tuple([y[jj][i+2] for jj in range(len(y))]))
+                
+                return asyn, tuple([y[jj][i+2] for jj in range(len(y))])
             
             # Training
             for cur_neu in range(int(N_neurons)):
                 for conn in range(N_neurons):
+                    # check distance between current and ideal weights
+                    if abs(asyn[cur_neu][conn] - asyn_ideal[cur_neu][conn]) < tolerance:
+                        wt_train_check[cur_neu][conn] = 1
+                        continue
                     # WALK
                     if pattern_id == 1:
                         one_hot_encoded[4] = 0
@@ -301,21 +333,21 @@ def train_bdf_second(pattern_id, ser, f=f, y0=S_0, h=1, ti=0, tf=10):
                     else:
                         one_hot_encoded[4] = 1
 
-                    if conn != cur_neu:
-                        # if (abs(walk_ideal[cur_neu][cur_spk[cur_neu]]-(eventp[cur_neu][-1]-st_time)
-                        #         %1600)>100) and walk_curr_conn[cur_neu][conn]==1:
+                    # if conn != cur_neu and eventp[cur_neu] and wt_train_check[cur_neu][conn] != 1:
+                    if conn != cur_neu and wt_train_check[cur_neu][conn] != 1:
                         if (abs(W_ideal[cur_neu][cur_spk[cur_neu]]-(eventp[cur_neu][-1] - st_time)
                                 % 1600) > 100) and curr_conn[cur_neu][conn]==1:
-                            #asyn_ideal = asyn
+                            
                             asyn[cur_neu][conn] = -0.75 * sf(asyn[cur_neu][conn]+train_STDP(lr,
                                 ((eventp[cur_neu][-1] - st_time) % 1600), W_ideal[cur_neu]
                                 [cur_spk[cur_neu]],100), 1, 0)
-                        # elif walk_curr_conn[cur_neu][conn]==0:
+                            break
+
                         elif curr_conn[cur_neu][conn]==0:
-                            #asyn_ideal = asyn
                             asyn[cur_neu][conn] = 0.75 * sf(asyn[cur_neu][conn]+train_STDP(lr,
                                 ((eventp[cur_neu][-1] - st_time) % 1600), W_ideal[cur_neu]
                                 [cur_spk[cur_neu]], 100), 1, 0)
+                            break
                     
                     cur_spk[cur_neu] += 1
                     if cur_spk[cur_neu] == 8:
@@ -327,7 +359,7 @@ def train_bdf_second(pattern_id, ser, f=f, y0=S_0, h=1, ti=0, tf=10):
             ser.write(data_str.encode())
             
 
-    return None, None
+    return asyn, tuple([y[jj][i+2] for jj in range(len(y))])
 
 
 

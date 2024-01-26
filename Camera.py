@@ -46,37 +46,24 @@ class Camera:
         
         return True
     
-    def check_obstacle(self,cap) -> bool:
+    # def check_obstacle(self,cam_info) -> bool:
+    def check_obstacle(self, frame) -> bool:
         """ Returns if True if obstacle detected. """
-        #cap = cv2.VideoCapture(0)
-
-        success, image = cap.read()
-            
-        
-        if not success:
-            cap.release()
-            cv2.destroyAllWindows()
-        
-            return False
-        
         # Define the coordinates of the center 100x100 window
-        center_x = 260  # Adjust the X-coordinate to position the window as needed
-        center_y = 150  # Adjust the Y-coordinate to position the window as needed
+        center_x = 260  
+        center_y = 150  
         window_size = 200
-        # Extract the center window from the image
-        center_window = image[center_y:center_y+window_size, center_x:center_x+window_size]
-        #cv2.imshow("center_window", center_window)
-        # Apply Gaussian smoothing to reduce noise on the center window
+
+        center_window = frame[center_y:center_y+window_size, center_x:center_x+window_size]
+
         blurred = cv2.GaussianBlur(center_window, (5, 5), 0)
-        # Perform Canny edge detection on the center window
-        edges = cv2.Canny(blurred, 50, 150)  # Adjust threshold values as needed
-        # Create a binary image where edges are detected (edges) or not (background)
+        edges = cv2.Canny(blurred, 50, 150)  
         binary_edges = cv2.threshold(edges, 0, 255, cv2.THRESH_BINARY)[1]
-        # Check if any white pixels (edges) are present
-        
-        cap.release()
-        cv2.destroyAllWindows()
+
+        # cv2.imshow('Canny output', binary_edges)
+        # k = cv2.waitKey(20)
         
         if cv2.countNonZero(binary_edges) > 0:
+            print("OBSTACLE DETECTED")
             return True
         return False

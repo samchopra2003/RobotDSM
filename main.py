@@ -11,7 +11,6 @@ import os
 from pynput.keyboard import Listener
 
 from Network import Network
-# from Camera import Camera
 from utils.camera.run_cam import run_cam
 from Gyro import run_gyro
 from AbstractState import AbstractState
@@ -39,7 +38,7 @@ N_neurons = 4
 
 state_command = ''
 state_name = ''
-spikes_per_burst = 3
+spikes_per_burst = 6
 
 
 def on_press(key):
@@ -67,7 +66,6 @@ def on_press(key):
 
 def main(gyro_pipe, cam_pipe):
 
-    # cap = cv2.VideoCapture(0)
     ser = serial.Serial('/dev/ttyUSB0', 9600)
     ser.reset_input_buffer()
 
@@ -113,13 +111,25 @@ def main(gyro_pipe, cam_pipe):
 
     autonomous = False
 
-    crawl_start_t = 0   # REMOVE LATER
+    keep_crawling_init_t = 0
+    keep_crawling = False
+    crawl_dur = 200
 
     print("Initializing EnigmaXPetoi...")
     for t in tqdm(range(steps, TMAX)):
     # for t in range(steps, TMAX):
-        # User input command
         global state_command
+        if t == 10:
+            state_command = 'l'
+            state_name = 'w'
+        if t == 15:
+            state_command = 'l'
+            state_name = 'c'
+        if t == 20:
+            state_command = 's'  
+
+        # User input command
+        # global state_command
         if state_command == 'x':
             print('Terminated')
             state_command = ''
@@ -156,7 +166,6 @@ def main(gyro_pipe, cam_pipe):
                         weights=walk_weights, V_state=V_state)
                 
                 available_states.append(walk_pattern_id)
-
                 gyro_pipe.send("Finished learning")
                 cam_pipe.send("Finished learning")
                 # once converged transition to IDLE
@@ -240,7 +249,6 @@ def main(gyro_pipe, cam_pipe):
                 no_obstacle = True
 
 
-
             # WALK
             if current_state_id == walk_state.get_pattern_id():
                 print("State: WALK")
@@ -258,25 +266,28 @@ def main(gyro_pipe, cam_pipe):
 
             # CRAWL
             elif current_state_id == crawl_state.get_pattern_id():
-                crawl_start_t = t
+
                 print("State: CRAWL")
                 network.set_weights(crawl_state.get_weights())
-                if (on_balance and not no_obstacle) or t <= (crawl_start_t + 50):
+                if (on_balance and not no_obstacle) or keep_crawling:
+                    if not keep_crawling: #First time obstacle detection
+                        keep_crawling_init_t = t
+                        keep_crawling = True
+                    if keep_crawling_init_t + crawl_dur < t: #when crawl_dur runs out
+                        keep_crawling = False
                     if not np.all(one_hot_encoded[:4] == 0):
                         print("LOL = ", one_hot_encoded)
                         one_hot_encoded[4] = 1
                         data_str = ','.join(map(str, one_hot_encoded.astype(int))) + '\n'
                         ser.write(data_str.encode())
-                        time.sleep(0.2)
+                        # time.sleep(0.2)
                 else:
-                    if t > crawl_start_t + 50:  # TODO: REMOVE THIS!!!
-                        current_state_id = idle_state.get_pattern_id()
-                        current_state = idle_state
+                    current_state_id = idle_state.get_pattern_id()
+                    current_state = idle_state
 
             # IDLE
-            # elif current_state_id == idle_state.get_pattern_id():
             if current_state_id == idle_state.get_pattern_id():
-                print("State: AUTONOMOUS IDLE")
+                print("State: IDLE")
                 network.set_weights(idle_state.get_weights())
 
                 if on_balance and no_obstacle and \
@@ -292,18 +303,13 @@ def main(gyro_pipe, cam_pipe):
                         current_state_id = crawl_state.get_pattern_id()
                         current_state = crawl_state
 
-            # on_balance = True
-            # no_obstacle = False
+                        keep_crawling_init_t = t
+                        keep_crawling = True
 
 
         else:
             # time.sleep(0.2)
             print("State: IDLE")
-    
-        # state_command = ''
-        # cap.release()
-        # cv2.destroyAllWindows()
-        # time.sleep(0.01)
 
         
 if __name__ == '__main__':

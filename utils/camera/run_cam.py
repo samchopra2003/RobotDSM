@@ -26,7 +26,7 @@ def run_cam(pipe):
                 # print("SUCCESS")
                 pipe.send(cam.check_obstacle(frame)) # sends bool
             # else:
-            #     print("FAILURE U A BITCH!")
+            #     print("FAILURE!")
 
     cap.release()
     cv2.destroyAllWindows()

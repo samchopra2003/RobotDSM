@@ -77,23 +77,6 @@ def main(ser, cam_pipe, bdf_pipe):
     x_list = []
     y_list = []
     z_list = []
-    
-
-    idle_state = AbstractState(pattern_id=0, weights=idle_weights)
-    learn_state = AbstractState(pattern_id=-1)
-
-    current_state = idle_state
-    current_state_id = idle_state.get_pattern_id()
-
-    available_states = [idle_state.get_pattern_id(), 
-        learn_state.get_pattern_id()]
-    
-    walk_state = None
-    crawl_state = None
-
-    pattern_learner = PatternLearner()
-
-    # network = Network(tmax=TMAX)
 
     # control flags
     on_balance = True
@@ -101,6 +84,28 @@ def main(ser, cam_pipe, bdf_pipe):
     walk_pattern_id = 1
     crawl_pattern_id = 2
     new_pattern_id = 3
+
+    idle_state = AbstractState(pattern_id=0, weights=idle_weights)
+    learn_state = AbstractState(pattern_id=-1)
+    walk_state = AbstractState(pattern_id=walk_pattern_id,
+                        weights=[], V_state=[])
+    crawl_state = AbstractState(pattern_id=crawl_pattern_id,
+                        weights=[], V_state=[])
+    
+
+    current_state = idle_state
+    current_state_id = idle_state.get_pattern_id()
+
+    available_states = [idle_state.get_pattern_id(), 
+        learn_state.get_pattern_id(), walk_state.get_pattern_id(),
+        crawl_state.get_pattern_id()]
+    
+    # walk_state = None
+    # crawl_state = None
+
+    pattern_learner = PatternLearner()
+
+    # network = Network(tmax=TMAX)
 
     actual_spike_ctr = [0, 0, 0, 0]
 
@@ -112,6 +117,8 @@ def main(ser, cam_pipe, bdf_pipe):
     keep_crawling_init_t = 0
     keep_crawling = False
     crawl_dur = 5000 #1500
+
+    gait_changed = False
 
     print("Initializing EnigmaXPetoi...")
     # for t in tqdm(range(steps, TMAX)):
@@ -204,7 +211,7 @@ def main(ser, cam_pipe, bdf_pipe):
         #     # start CPG evolution   
         elif autonomous:
             bdf_pipe.send("Start")
-
+            # print("AUTO LOL")
             # one_hot_encoded = np.zeros(5)   # [neu1, neu2, neu3, neu4, motorCmdFlag]
             # spiked_neurons = np.zeros(4)
             
@@ -236,11 +243,11 @@ def main(ser, cam_pipe, bdf_pipe):
             #     z_list.append(z)
 
 
-            if len(x_list) >= 5:
-                if not check_gyro_balance(x_list, y_list, z_list):
-                    on_balance = False
-                else:
-                    on_balance = True
+            # if len(x_list) >= 5:
+            #     if not check_gyro_balance(x_list, y_list, z_list):
+            #         on_balance = False
+            #     else:
+            #         on_balance = True
             
             
             #poll camera 
@@ -249,11 +256,15 @@ def main(ser, cam_pipe, bdf_pipe):
             else:
                 no_obstacle = True
 
-
             # WALK
-            # if current_state_id == walk_state.get_pattern_id():
-            if current_state_id == idle_state.get_pattern_id():
-                print("State: WALK")
+            if current_state_id == walk_state.get_pattern_id():
+            # if current_state_id == idle_state.get_pattern_id():
+            # if current_state_id == 10:
+                print("State: WALK at timestep ", t)
+                if not gait_changed:
+                    gait_changed = True
+                    bdf_pipe.send("Walk")
+                    print("Gait change!")
                 # network.set_weights(walk_state.get_weights())
                 # if on_balance and no_obstacle:
                 #     if not np.all(one_hot_encoded[:4] == 0):
@@ -264,53 +275,61 @@ def main(ser, cam_pipe, bdf_pipe):
                 #         time.sleep(0.01)
                 # else:
 
-                # if not on_balance or not no_obstacle:
-                #     current_state_id = idle_state.get_pattern_id()
-                #     idle_state = idle_state
+                if not on_balance or not no_obstacle:
+                    current_state_id = idle_state.get_pattern_id()
+                    idle_state = idle_state
 
             # CRAWL
             elif current_state_id == crawl_state.get_pattern_id():
-
+            # elif current_state_id == idle_state.get_pattern_id():
                 print("State: CRAWL")
+                if not gait_changed:
+                    gait_changed = True
+                    bdf_pipe.send("Crawl")
+                    print("Gait change!")
                 # network.set_weights(crawl_state.get_weights())
-                # if (on_balance and not no_obstacle) or keep_crawling:
-                #     if not keep_crawling: #First time obstacle detection
-                #         keep_crawling_init_t = t
-                #         keep_crawling = True
-                #     if keep_crawling_init_t + crawl_dur < t: #when crawl_dur runs out
-                #         keep_crawling = False
-                #     if not np.all(one_hot_encoded[:4] == 0):
-                #         #print("LOL = ", one_hot_encoded)
-                #         one_hot_encoded[4] = 1
-                #         data_str = ','.join(map(str, one_hot_encoded.astype(int))) + '\n'
-                #         ser.write(data_str.encode())
-                #         time.sleep(0.1)
+                if (on_balance and not no_obstacle) or keep_crawling:
+                    if not keep_crawling: #First time obstacle detection
+                        keep_crawling_init_t = t
+                        keep_crawling = True
+                    if keep_crawling_init_t + crawl_dur < t: #when crawl_dur runs out
+                        keep_crawling = False
+                    # if not np.all(one_hot_encoded[:4] == 0):
+                    #     #print("LOL = ", one_hot_encoded)
+                    #     one_hot_encoded[4] = 1
+                    #     data_str = ','.join(map(str, one_hot_encoded.astype(int))) + '\n'
+                    #     ser.write(data_str.encode())
+                    #     time.sleep(0.1)
                 # else:
+                    
                 if (not on_balance or not no_obstacle) and not keep_crawling:
                 #     if not keep_crawling: #First time obstacle detection
                     current_state_id = idle_state.get_pattern_id()
                     current_state = idle_state
 
             # IDLE
-            # if current_state_id == idle_state.get_pattern_id():
-            #     print("State: IDLE")
-            #     # network.set_weights(idle_state.get_weights())
+            if current_state_id == idle_state.get_pattern_id():
+                print("State: IDLE")
+                print("Triggers: ", on_balance, no_obstacle)
+                # network.set_weights(idle_state.get_weights())
 
-            #     if on_balance and no_obstacle and \
-            #         walk_pattern_id in available_states:
-            #             # transition to WALK
-            #             current_state_id = walk_state.get_pattern_id()
-            #             current_state = walk_state
+                if on_balance and no_obstacle and \
+                    walk_pattern_id in available_states:
+                        # transition to WALK
+                        gait_changed = False
+                        current_state_id = walk_state.get_pattern_id()
+                        current_state = walk_state
 
                     
-            #     elif on_balance and not no_obstacle and \
-            #         crawl_pattern_id in available_states:
-            #             # transition to CRAWL
-            #             current_state_id = crawl_state.get_pattern_id()
-            #             current_state = crawl_state
+                elif on_balance and not no_obstacle and \
+                    crawl_pattern_id in available_states:
+                        # transition to CRAWL
+                        gait_changed = False
+                        current_state_id = crawl_state.get_pattern_id()
+                        current_state = crawl_state
 
-            #             keep_crawling_init_t = t
-            #             keep_crawling = True
+                        keep_crawling_init_t = t
+                        keep_crawling = True
 
 
         else:

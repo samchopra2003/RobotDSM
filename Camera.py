@@ -66,9 +66,10 @@ class Camera:
         #                 binary_edges.shape[0], :]
 
         top_frame = binary_edges[0: binary_edges.shape[0] // 2 , :]
-
-        cv2.imshow('top_frame', top_frame)
-        k = cv2.waitKey(20)
+        
+        # uncomment these for visualization
+        # cv2.imshow('top_frame', top_frame)
+        # k = cv2.waitKey(20)
         
         if cv2.countNonZero(top_frame) > 0:
             print("OBSTACLE DETECTED")

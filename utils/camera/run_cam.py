@@ -3,7 +3,7 @@ import cv2
 
 from Camera import Camera
 
-learning = True # TODO: Improve
+learning = False # TODO: Improve
 def run_cam(pipe):
     cap = cv2.VideoCapture(0)
     cam = Camera()

@@ -56,8 +56,8 @@ class Camera:
 
         # center_window = frame[center_y:center_y+window_size, center_x:center_x+window_size]
 
-        blurred = cv2.GaussianBlur(frame, (5, 5), 0)
-        binary_edges = cv2.Canny(blurred, 50, 150)  
+        # blurred = cv2.GaussianBlur(frame, (5, 5), 0)
+        binary_edges = cv2.Canny(frame, 50, 150)  
         # binary_edges = cv2.threshold(edges, 0, 255, cv2.THRESH_BINARY)[1]
 
         # cv2.imshow('Canny output', binary_edges)
@@ -65,8 +65,7 @@ class Camera:
         # bottom_frame = binary_edges[binary_edges.shape[0] // 2 :
         #                 binary_edges.shape[0], :]
 
-        top_frame = binary_edges[0: 
-                                 binary_edges.shape[0] // 2 , :]
+        top_frame = binary_edges[0: binary_edges.shape[0] // 2 , :]
 
         cv2.imshow('top_frame', top_frame)
         k = cv2.waitKey(20)

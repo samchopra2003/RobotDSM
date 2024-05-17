@@ -16,6 +16,7 @@ from Gyro import run_gyro
 from AbstractState import AbstractState
 from PatternLearner import PatternLearner
 from utils.check_gyro_balance import check_gyro_balance
+from utils.bdf_utils import bdf_second, f, set_weights
 
 # pattern training params (STDP)
 walk_spike_times = [[800,900,1000,1100,1200,1300,
@@ -64,22 +65,19 @@ def on_press(key):
         state_name = ''
 
 
-def main(gyro_pipe, cam_pipe):
-
-    ser = serial.Serial('/dev/ttyUSB0', 9600)
-    ser.reset_input_buffer()
+# def main(ser, gyro_pipe, cam_pipe, bdf_pipe):
+def main(ser, cam_pipe, bdf_pipe):
 
     # keyboard event listener
     listener = Listener(on_press=on_press)
     listener.start()
     
     # Gyro inits
-    x_init, y_init, z_init = gyro_pipe.recv()
+    # x_init, y_init, z_init = gyro_pipe.recv()
     x_list = []
     y_list = []
     z_list = []
     
-    # cam = Camera()
 
     idle_state = AbstractState(pattern_id=0, weights=idle_weights)
     learn_state = AbstractState(pattern_id=-1)
@@ -95,7 +93,7 @@ def main(gyro_pipe, cam_pipe):
 
     pattern_learner = PatternLearner()
 
-    network = Network(tmax=TMAX)
+    # network = Network(tmax=TMAX)
 
     # control flags
     on_balance = True
@@ -116,15 +114,15 @@ def main(gyro_pipe, cam_pipe):
     crawl_dur = 5000 #1500
 
     print("Initializing EnigmaXPetoi...")
-    for t in tqdm(range(steps, TMAX)):
-    # for t in range(steps, TMAX):
+    # for t in tqdm(range(steps, TMAX)):
+    for t in range(steps, TMAX):
         global state_command
-        if t == 10:
-            state_command = 'l'
-            state_name = 'w'
-        if t == 15:
-            state_command = 'l'
-            state_name = 'c'
+        # if t == 10:
+        #     state_command = 'l'
+        #     state_name = 'w'
+        # if t == 15:
+        #     state_command = 'l'
+        #     state_name = 'c'
         if t == 20:
             state_command = 's'  
 
@@ -154,7 +152,7 @@ def main(gyro_pipe, cam_pipe):
         # LEARNING
         if current_state_id == learn_state.get_pattern_id() and not autonomous:
             print("State: LEARN")
-            gyro_pipe.send("Learning")
+            # gyro_pipe.send("Learning")
             cam_pipe.send("Learning")
 
             if state_name == 'w' and not walk_state:
@@ -166,7 +164,7 @@ def main(gyro_pipe, cam_pipe):
                         weights=walk_weights, V_state=V_state)
                 
                 available_states.append(walk_pattern_id)
-                gyro_pipe.send("Finished learning")
+                # gyro_pipe.send("Finished learning")
                 cam_pipe.send("Finished learning")
                 # once converged transition to IDLE
                 current_state_id = idle_state.get_pattern_id()
@@ -183,7 +181,7 @@ def main(gyro_pipe, cam_pipe):
                 
                 available_states.append(crawl_pattern_id)
 
-                gyro_pipe.send("Finished learning")
+                # gyro_pipe.send("Finished learning")
                 cam_pipe.send("Finished learning")
                 # once converged transition to IDLE
                 current_state_id = idle_state.get_pattern_id()
@@ -202,37 +200,40 @@ def main(gyro_pipe, cam_pipe):
 
 
         # AUTONOMOUS PHASE
-        elif autonomous and walk_pattern_id in available_states and crawl_pattern_id in available_states:
+        # elif autonomous and walk_pattern_id in available_states and crawl_pattern_id in available_states:
+        #     # start CPG evolution   
+        elif autonomous:
+            bdf_pipe.send("Start")
+
+            # one_hot_encoded = np.zeros(5)   # [neu1, neu2, neu3, neu4, motorCmdFlag]
+            # spiked_neurons = np.zeros(4)
             
-            one_hot_encoded = np.zeros(5)   # [neu1, neu2, neu3, neu4, motorCmdFlag]
-            spiked_neurons = np.zeros(4)
-            
-            if t % steps == 0 :  # evolve network every t steps as we are computing for t steps
+            # if t % steps == 0 :  # evolve network every t steps as we are computing for t steps
                 #print('From main: ' ,current_state.get_pattern_id())
-                steps_spiked_neurons = network.evolve(t, current_state, use_bdf=True, steps=steps)
+                # steps_spiked_neurons = network.evolve(t, current_state, use_bdf=True, steps=steps)
             
-            spiked_neurons = steps_spiked_neurons[t % steps]    # 2%2 = 0, 3%2 = 1
+            # spiked_neurons = steps_spiked_neurons[t % steps]    # 2%2 = 0, 3%2 = 1
             
             # print("Neurons spiked main= ", spiked_neurons)
 
             # move once burst finishes
-            for cur_neu in range(N_neurons):
-                if spiked_neurons[cur_neu] == 1:
-                    actual_spike_ctr[cur_neu] += 1
+            # for cur_neu in range(N_neurons):
+            #     if spiked_neurons[cur_neu] == 1:
+            #         actual_spike_ctr[cur_neu] += 1
 
-                if actual_spike_ctr[cur_neu] >= spikes_per_burst:
-                    actual_spike_ctr[cur_neu] = 0
-                    one_hot_encoded[cur_neu] = 1
+            #     if actual_spike_ctr[cur_neu] >= spikes_per_burst:
+            #         actual_spike_ctr[cur_neu] = 0
+            #         one_hot_encoded[cur_neu] = 1
             
             # poll gyro
-            if gyro_pipe.poll():
-                x, y, z = gyro_pipe.recv()
-                x -= x_init
-                y -= y_init
-                z -= z_init
-                x_list.append(x)
-                y_list.append(y)
-                z_list.append(z)
+            # if gyro_pipe.poll():
+            #     x, y, z = gyro_pipe.recv()
+            #     x -= x_init
+            #     y -= y_init
+            #     z -= z_init
+            #     x_list.append(x)
+            #     y_list.append(y)
+            #     z_list.append(z)
 
 
             if len(x_list) >= 5:
@@ -250,61 +251,66 @@ def main(gyro_pipe, cam_pipe):
 
 
             # WALK
-            if current_state_id == walk_state.get_pattern_id():
+            # if current_state_id == walk_state.get_pattern_id():
+            if current_state_id == idle_state.get_pattern_id():
                 print("State: WALK")
-                network.set_weights(walk_state.get_weights())
-                if on_balance and no_obstacle:
-                    if not np.all(one_hot_encoded[:4] == 0):
-                        #print("LOL = ", one_hot_encoded)
-                        one_hot_encoded[4] = 0
-                        data_str = ','.join(map(str, one_hot_encoded.astype(int))) + '\n'
-                        ser.write(data_str.encode())
-                        time.sleep(0.01)
-                else:
-                    current_state_id = idle_state.get_pattern_id()
-                    idle_state = idle_state
+                # network.set_weights(walk_state.get_weights())
+                # if on_balance and no_obstacle:
+                #     if not np.all(one_hot_encoded[:4] == 0):
+                #         #print("LOL = ", one_hot_encoded)
+                #         one_hot_encoded[4] = 0
+                #         data_str = ','.join(map(str, one_hot_encoded.astype(int))) + '\n'
+                #         ser.write(data_str.encode())
+                #         time.sleep(0.01)
+                # else:
+
+                # if not on_balance or not no_obstacle:
+                #     current_state_id = idle_state.get_pattern_id()
+                #     idle_state = idle_state
 
             # CRAWL
             elif current_state_id == crawl_state.get_pattern_id():
 
                 print("State: CRAWL")
-                network.set_weights(crawl_state.get_weights())
-                if (on_balance and not no_obstacle) or keep_crawling:
-                    if not keep_crawling: #First time obstacle detection
-                        keep_crawling_init_t = t
-                        keep_crawling = True
-                    if keep_crawling_init_t + crawl_dur < t: #when crawl_dur runs out
-                        keep_crawling = False
-                    if not np.all(one_hot_encoded[:4] == 0):
-                        #print("LOL = ", one_hot_encoded)
-                        one_hot_encoded[4] = 1
-                        data_str = ','.join(map(str, one_hot_encoded.astype(int))) + '\n'
-                        ser.write(data_str.encode())
-                        time.sleep(0.1)
-                else:
+                # network.set_weights(crawl_state.get_weights())
+                # if (on_balance and not no_obstacle) or keep_crawling:
+                #     if not keep_crawling: #First time obstacle detection
+                #         keep_crawling_init_t = t
+                #         keep_crawling = True
+                #     if keep_crawling_init_t + crawl_dur < t: #when crawl_dur runs out
+                #         keep_crawling = False
+                #     if not np.all(one_hot_encoded[:4] == 0):
+                #         #print("LOL = ", one_hot_encoded)
+                #         one_hot_encoded[4] = 1
+                #         data_str = ','.join(map(str, one_hot_encoded.astype(int))) + '\n'
+                #         ser.write(data_str.encode())
+                #         time.sleep(0.1)
+                # else:
+                if (not on_balance or not no_obstacle) and not keep_crawling:
+                #     if not keep_crawling: #First time obstacle detection
                     current_state_id = idle_state.get_pattern_id()
                     current_state = idle_state
 
             # IDLE
-            if current_state_id == idle_state.get_pattern_id():
-                print("State: IDLE")
-                network.set_weights(idle_state.get_weights())
+            # if current_state_id == idle_state.get_pattern_id():
+            #     print("State: IDLE")
+            #     # network.set_weights(idle_state.get_weights())
 
-                if on_balance and no_obstacle and \
-                    walk_pattern_id in available_states:
-                        # transition to WALK
-                        current_state_id = walk_state.get_pattern_id()
-                        current_state = walk_state
+            #     if on_balance and no_obstacle and \
+            #         walk_pattern_id in available_states:
+            #             # transition to WALK
+            #             current_state_id = walk_state.get_pattern_id()
+            #             current_state = walk_state
 
                     
-                elif on_balance and not no_obstacle and \
-                    crawl_pattern_id in available_states:
-                        # transition to CRAWL
-                        current_state_id = crawl_state.get_pattern_id()
-                        current_state = crawl_state
+            #     elif on_balance and not no_obstacle and \
+            #         crawl_pattern_id in available_states:
+            #             # transition to CRAWL
+            #             current_state_id = crawl_state.get_pattern_id()
+            #             current_state = crawl_state
 
-                        keep_crawling_init_t = t
-                        keep_crawling = True
+            #             keep_crawling_init_t = t
+            #             keep_crawling = True
 
 
         else:
@@ -313,19 +319,27 @@ def main(gyro_pipe, cam_pipe):
 
         
 if __name__ == '__main__':
-    parent_conn_gyro, child_conn_gyro = Pipe()
+    # parent_conn_gyro, child_conn_gyro = Pipe()
     parent_conn_cam, child_conn_cam = Pipe()
+    parent_conn_bdf, child_conn_bdf = Pipe()
+
+    ser = serial.Serial('/dev/ttyUSB0', 9600)
+    ser.reset_input_buffer()
     
-    p1 = Process(target=main, args=(parent_conn_gyro, parent_conn_cam))
-    p2 = Process(target=run_gyro, args=(child_conn_gyro,))
+    # p1 = Process(target=main, args=(ser, parent_conn_gyro, parent_conn_cam, parent_conn_bdf))
+    p1 = Process(target=main, args=(ser, parent_conn_cam, parent_conn_bdf))
+    # p2 = Process(target=run_gyro, args=(child_conn_gyro,))
     p3 = Process(target=run_cam, args=(child_conn_cam,))
+    p4 = Process(target=bdf_second, args=(ser, child_conn_bdf,))
 
     p1.start()
-    p2.start()
+    # p2.start()
     p3.start()
+    p4.start()
     
     p1.join()
-    p2.join()
+    # p2.join()
     p3.join()
+    p4.join()
 
     print("All processes are done.")

@@ -50,20 +50,28 @@ class Camera:
     def check_obstacle(self, frame) -> bool:
         """ Returns if True if obstacle detected. """
         # Define the coordinates of the center 100x100 window
-        center_x = 260  
-        center_y = 150  
-        window_size = 200
+        # center_x = 260  
+        # center_y = 150  
+        # window_size = 200
 
-        center_window = frame[center_y:center_y+window_size, center_x:center_x+window_size]
+        # center_window = frame[center_y:center_y+window_size, center_x:center_x+window_size]
 
-        blurred = cv2.GaussianBlur(center_window, (5, 5), 0)
-        edges = cv2.Canny(blurred, 50, 150)  
-        binary_edges = cv2.threshold(edges, 0, 255, cv2.THRESH_BINARY)[1]
+        blurred = cv2.GaussianBlur(frame, (5, 5), 0)
+        binary_edges = cv2.Canny(blurred, 50, 150)  
+        # binary_edges = cv2.threshold(edges, 0, 255, cv2.THRESH_BINARY)[1]
 
         # cv2.imshow('Canny output', binary_edges)
         # k = cv2.waitKey(20)
+        # bottom_frame = binary_edges[binary_edges.shape[0] // 2 :
+        #                 binary_edges.shape[0], :]
+
+        top_frame = binary_edges[0: 
+                                 binary_edges.shape[0] // 2 , :]
+
+        cv2.imshow('top_frame', top_frame)
+        k = cv2.waitKey(20)
         
-        if cv2.countNonZero(binary_edges) > 0:
+        if cv2.countNonZero(top_frame) > 0:
             print("OBSTACLE DETECTED")
             return True
         return False

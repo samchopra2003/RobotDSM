@@ -314,7 +314,8 @@ def train_bdf_second(pattern_id, ser, f=f, y0=S_0, h=1, ti=0, tf=TF):
         if (i+2) >= st_time:
             # global asyn_ideal
 
-            if np.sum(wt_train_check) == 16:
+            if np.sum(wt_train_check) == 16 and i > 7000:
+            # if np.sum(wt_train_check) == 16:
                 # converged weights, latest voltages (state)
                 print("CONV WEIGHTS", asyn)
                 print("CONV STATE", tuple([y[jj][i+2] for jj in range(len(y))]))

@@ -38,7 +38,7 @@ N_neurons = 4
 
 state_command = ''
 state_name = ''
-spikes_per_burst = 6
+spikes_per_burst = 3
 
 
 def on_press(key):
@@ -113,7 +113,7 @@ def main(gyro_pipe, cam_pipe):
 
     keep_crawling_init_t = 0
     keep_crawling = False
-    crawl_dur = 200
+    crawl_dur = 5000 #1500
 
     print("Initializing EnigmaXPetoi...")
     for t in tqdm(range(steps, TMAX)):
@@ -177,7 +177,7 @@ def main(gyro_pipe, cam_pipe):
                 crawl_weights, V_state = pattern_learner.learn(crawl_spike_times,
                         curr_conn, ser, crawl_pattern_id, use_bdf=True)
 
-                print('Crawl Weights ', crawl_weights, V_state)
+                # print('Crawl Weights ', crawl_weights, V_state)
                 crawl_state = AbstractState(pattern_id=crawl_pattern_id,
                         weights=crawl_weights, V_state=V_state)
                 
@@ -255,11 +255,11 @@ def main(gyro_pipe, cam_pipe):
                 network.set_weights(walk_state.get_weights())
                 if on_balance and no_obstacle:
                     if not np.all(one_hot_encoded[:4] == 0):
-                        print("LOL = ", one_hot_encoded)
+                        #print("LOL = ", one_hot_encoded)
                         one_hot_encoded[4] = 0
                         data_str = ','.join(map(str, one_hot_encoded.astype(int))) + '\n'
                         ser.write(data_str.encode())
-                        # time.sleep(0.5)
+                        time.sleep(0.01)
                 else:
                     current_state_id = idle_state.get_pattern_id()
                     idle_state = idle_state
@@ -276,11 +276,11 @@ def main(gyro_pipe, cam_pipe):
                     if keep_crawling_init_t + crawl_dur < t: #when crawl_dur runs out
                         keep_crawling = False
                     if not np.all(one_hot_encoded[:4] == 0):
-                        print("LOL = ", one_hot_encoded)
+                        #print("LOL = ", one_hot_encoded)
                         one_hot_encoded[4] = 1
                         data_str = ','.join(map(str, one_hot_encoded.astype(int))) + '\n'
                         ser.write(data_str.encode())
-                        # time.sleep(0.2)
+                        time.sleep(0.1)
                 else:
                     current_state_id = idle_state.get_pattern_id()
                     current_state = idle_state

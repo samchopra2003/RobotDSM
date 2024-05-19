@@ -72,6 +72,6 @@ class Camera:
         # k = cv2.waitKey(20)
         
         if cv2.countNonZero(top_frame) > 0:
-            print("OBSTACLE DETECTED")
+            # print("OBSTACLE DETECTED")
             return True
         return False

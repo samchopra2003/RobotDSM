@@ -41,6 +41,8 @@ state_command = ''
 state_name = ''
 spikes_per_burst = 3
 
+log_freq = 500
+
 
 def on_press(key):
     try:
@@ -116,7 +118,7 @@ def main(ser, cam_pipe, bdf_pipe):
 
     keep_crawling_init_t = 0
     keep_crawling = False
-    crawl_dur = 5000 #1500
+    crawl_dur = 500
 
     gait_changed = False
 
@@ -258,13 +260,15 @@ def main(ser, cam_pipe, bdf_pipe):
 
             # WALK
             if current_state_id == walk_state.get_pattern_id():
+                if t % log_freq == 0:
+                    print("State: WALK") 
             # if current_state_id == idle_state.get_pattern_id():
             # if current_state_id == 10:
-                print("State: WALK at timestep ", t)
+                # print("State: WALK at timestep ", t)
                 if not gait_changed:
                     gait_changed = True
                     bdf_pipe.send("Walk")
-                    print("Gait change!")
+                    print("Gait change to Walk!")
                 # network.set_weights(walk_state.get_weights())
                 # if on_balance and no_obstacle:
                 #     if not np.all(one_hot_encoded[:4] == 0):
@@ -282,17 +286,18 @@ def main(ser, cam_pipe, bdf_pipe):
             # CRAWL
             elif current_state_id == crawl_state.get_pattern_id():
             # elif current_state_id == idle_state.get_pattern_id():
-                print("State: CRAWL")
+                if t % log_freq == 0:
+                    print("State: CRAWL")
                 if not gait_changed:
                     gait_changed = True
                     bdf_pipe.send("Crawl")
-                    print("Gait change!")
+                    print("Gait change to Crawl!")
                 # network.set_weights(crawl_state.get_weights())
                 if (on_balance and not no_obstacle) or keep_crawling:
                     if not keep_crawling: #First time obstacle detection
                         keep_crawling_init_t = t
                         keep_crawling = True
-                    if keep_crawling_init_t + crawl_dur < t: #when crawl_dur runs out
+                    if t > keep_crawling_init_t + crawl_dur: #when crawl_dur runs out
                         keep_crawling = False
                     # if not np.all(one_hot_encoded[:4] == 0):
                     #     #print("LOL = ", one_hot_encoded)
@@ -301,17 +306,20 @@ def main(ser, cam_pipe, bdf_pipe):
                     #     ser.write(data_str.encode())
                     #     time.sleep(0.1)
                 # else:
-                    
-                if (not on_balance or not no_obstacle) and not keep_crawling:
-                #     if not keep_crawling: #First time obstacle detection
+                # print("Crawl dur: ", keep_crawling_init_t + crawl_dur, "t: ", t)
+                # print(not keep_crawling, not on_balance, no_obstacle)
+                if (not on_balance or no_obstacle) and not keep_crawling:
                     current_state_id = idle_state.get_pattern_id()
                     current_state = idle_state
+                    # keep_idle_t = t
 
             # IDLE
             if current_state_id == idle_state.get_pattern_id():
+                # if t % log_freq == 0:
                 print("State: IDLE")
-                print("Triggers: ", on_balance, no_obstacle)
                 # network.set_weights(idle_state.get_weights())
+
+                # time.sleep(10)
 
                 if on_balance and no_obstacle and \
                     walk_pattern_id in available_states:

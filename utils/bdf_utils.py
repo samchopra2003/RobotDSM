@@ -223,7 +223,7 @@ def bdf_second(ser, pipe, f=f, y0=S_0, h=3.35, ti=0, tf=TMAX):
         if pipe.poll():
             cmd = pipe.recv()
             if cmd == 'Start': 
-                print("Started evolution")
+                print("Started network evolution")
                 time.sleep(2.0)
                 break
 
@@ -281,7 +281,7 @@ def bdf_second(ser, pipe, f=f, y0=S_0, h=3.35, ti=0, tf=TMAX):
     for i in range(0,N-2):
         # commands to arduino (9th element for gait selection)
         commands[:8] = 0
-        # 0: walk, 1: crawl
+        # 3: walk, 2: crawl
         if pipe.poll():
             cmd = pipe.recv()
             global g_lif
@@ -308,8 +308,8 @@ def bdf_second(ser, pipe, f=f, y0=S_0, h=3.35, ti=0, tf=TMAX):
                 g_lif[1][6] = vth+0.01  # BRK
                 g_lif[1][7] = vth+0.01  # BRS
                 print("Started crawl")
-                commands[8] = 1
-                time.sleep(2.0)
+                commands[8] = 2
+                # time.sleep(2.0)
 
             elif cmd == 'Walk':
                 g_lif=np.zeros((L1_neu, L2_neu))
@@ -321,9 +321,13 @@ def bdf_second(ser, pipe, f=f, y0=S_0, h=3.35, ti=0, tf=TMAX):
                 g_lif[2][5] = vth+0.01  # FLS
                 g_lif[3][6] = vth+0.01  # BRK
                 g_lif[3][7] = vth+0.01  # BRS
-                print("Started crawl")
-                commands[8] = 0
-                time.sleep(2.0)
+                print("Started walk")
+                commands[8] = 3
+                # time.sleep(2.0)
+
+            # else:   # idle
+            #     g_lif=np.zeros((L1_neu, L2_neu))
+            #     commands[8] = -1
 
         # g, Next value function. 
         def g(S):
@@ -440,6 +444,7 @@ def bdf_second(ser, pipe, f=f, y0=S_0, h=3.35, ti=0, tf=TMAX):
                 data_str = ','.join(map(str, commands.astype(int))) + '\n'
                 ser.write(data_str.encode())
                 # print("mtr cmds = ", data_str)
+                # time.sleep(0.005)
 
         else:
             print('No solution found')

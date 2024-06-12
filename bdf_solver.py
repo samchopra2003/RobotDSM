@@ -1,5 +1,4 @@
 import numpy as np
-
 from utils.bdf_utils import bdf_second, f, set_weights
 
 
@@ -22,7 +21,7 @@ def bdf_so_solver(t, W, current_state, steps=2, step_size=1):
     all_outs = []
     for i in range(steps):
         cur_out = []
-        for j in range(len(V) // 4):
+        for j in range(0, len(V), 4):   # [0, 4, 8, 12]
             cur_out.append(out[j][i])
         all_outs.append(cur_out)
 

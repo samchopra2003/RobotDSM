@@ -9,7 +9,7 @@ class Network:
         alpha=[-2, 2, -1.5, 2], delta=[0, 0, -0.88, 0], 
         beta=[-2, 2, -1.5, 2], Cm = 1, Iapp=[-2, -2, -2, -2], 
         tauf=1, taus=50, tauus=50*50, R=1,
-        dT=1, Erev=0.48, Vthresh=2.5, scale=1, tmax=100000):
+        dT=1, Erev=0.48, Vthresh=0, scale=1, tmax=100000):
         self.W = W
         self.N_neurons = N_neurons
         self.Iapp = Iapp
@@ -25,6 +25,7 @@ class Network:
         self.Vf = np.zeros((N_neurons,tmax))
         self.Vs = np.zeros((N_neurons,tmax))
         self.Vus = np.zeros((N_neurons,tmax))
+        self.prev_Vm = -1 * np.ones(N_neurons)
 
         self.tauf = tauf
         self.taus = taus
@@ -52,10 +53,12 @@ class Network:
         """ Evolve the membrane voltage of neurons. """
         spiked = [[0, 0, 0, 0] for _ in range(steps)]   # (steps, N_neurons)
         if use_bdf:
+            #print("NETWORK PARAMS = ", current_state.get_pattern_id(), self.W)
             for idx, vm in enumerate(bdf_so_solver(t, self.W, current_state, steps=steps)):
                 for cur_neu in range(4):
-                    if vm[cur_neu] > self.Vthresh:
+                    if vm[cur_neu] >= self.Vthresh and self.prev_Vm[cur_neu] < self.Vthresh:
                         spiked[idx][cur_neu] = 1
+                    self.prev_Vm[cur_neu] = vm[cur_neu]
 
         else:
             spiked = [0, 0, 0, 0]

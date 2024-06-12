@@ -6,6 +6,8 @@ import glob
 import time
 import matplotlib.pyplot as plt
 
+num_edges_file = 'data/num_edges.txt'
+
 class Camera:
 
     def __init__(self) -> None:
@@ -20,7 +22,7 @@ class Camera:
         
         
         
-    def _take_picture_(self):
+    def _take_picture_(self):   # deprecated
         image_path = f"./img/img{self.num-2}.png"
         if os.path.exists(image_path):
             os.remove(image_path)
@@ -46,40 +48,46 @@ class Camera:
         
         return True
     
-    def check_obstacle(self) -> bool:
+    # def check_obstacle(self,cam_info) -> bool:
+    def check_obstacle(self, frame, save_img=False, fname='') -> bool:
         """ Returns if True if obstacle detected. """
-        success = self._take_picture_()
-        if not success:
-            print("Frame not taken successfully")
-            return False
-        
-        image = cv2.imread(f"./img/img{self.num-1}.png")
-        print(image.shape)
-        
         # Define the coordinates of the center 100x100 window
-        center_x = 260  # Adjust the X-coordinate to position the window as needed
-        center_y = 150  # Adjust the Y-coordinate to position the window as needed
-        window_size = 200
-        # Extract the center window from the image
-        center_window = image[center_y:center_y+window_size, center_x:center_x+window_size]
-        #cv2.imshow("center_window", center_window)
-        # Apply Gaussian smoothing to reduce noise on the center window
-        blurred = cv2.GaussianBlur(center_window, (5, 5), 0)
-        # Perform Canny edge detection on the center window
-        edges = cv2.Canny(blurred, 50, 150)  # Adjust threshold values as needed
-        # Create a binary image where edges are detected (edges) or not (background)
-        binary_edges = cv2.threshold(edges, 0, 255, cv2.THRESH_BINARY)[1]
-        # Check if any white pixels (edges) are present
-        if cv2.countNonZero(binary_edges) > 0:
-            print("Obstacle detected in cam")
+        # center_x = 260  
+        # center_y = 150  
+        # window_size = 200
+
+        # center_window = frame[center_y:center_y+window_size, center_x:center_x+window_size]
+
+        # blurred = cv2.GaussianBlur(frame, (5, 5), 0)
+        binary_edges = cv2.Canny(frame, 20, 150)
+
+
+        # uncomment these for visualization
+        # cv2.imshow('top_frame', binary_edges)
+        # cv2.imshow('og', frame)
+        # k = cv2.waitKey(20)
+
+        # print("Edges: ", cv2.countNonZero(binary_edges))
+
+        num_edges = cv2.countNonZero(binary_edges)
+        # print("Num edges = ", num_edges)
+
+        if num_edges > 1000:
+            if not os.path.exists('data/obs_detect.png'):
+                cv2.imwrite('data/obs_detect.png', binary_edges)
+
+                with open(num_edges_file, 'a') as file:
+                    file.write('obs_detect: ' + str(num_edges) + '\n')
+
+            # print("OBSTACLE DETECTED")
             return True
+
+        if save_img:
+            cv2.imwrite('data/'+fname+'_og.png', frame)
+            cv2.imwrite('data/'+fname+'_canny.png', binary_edges)
+
+            with open(num_edges_file, 'a') as file:
+                file.write(fname + ': ' + str(num_edges) + '\n')
+
+
         return False
-    
-        #cv2.imshow('Edges', binary_edges)
-        #cv2.waitKey(0)
-        #cv2.destroyAllWindows()
-        
-    
-# if __name__ == "__main__":    
-#     cam = Camera()
-#     cam.check_obstacle()

@@ -1,27 +1,13 @@
 import numpy as np
 import time
 import os
-
-spikes_or_fr_file = os.path.join('./data', 'spikes_or_fr.txt')
-spikes_not_fr_file = os.path.join('./data', 'spikes_not_fr.txt')
-spikes_or_fl_file = os.path.join('./data', 'spikes_or_fl.txt')
-spikes_not_fl_file = os.path.join('./data', 'spikes_not_fl.txt')
-spikes_or_br_file = os.path.join('./data', 'spikes_or_br.txt')
-spikes_not_br_file = os.path.join('./data', 'spikes_not_br.txt')
-spikes_or_bl_file = os.path.join('./data', 'spikes_or_bl.txt')
-spikes_not_bl_file = os.path.join('./data', 'spikes_not_bl.txt')
-
-spikes_or_fr = []
-spikes_not_fr = []
-spikes_or_fl = []
-spikes_not_fl = []
-spikes_or_br = []
-spikes_not_br = []
-spikes_or_bl = []
-spikes_not_bl = []
-
+import serial
+import matplotlib.pyplot as plt
 
 TMAX = 1000000
+
+ser = serial.Serial('/dev/ttyUSB0', 9600)
+ser.reset_input_buffer()
 
 def sf(x,b,ds):
     k=b*(x-ds)
@@ -35,7 +21,7 @@ def d_sf(asyn,x,b,ds):
 b=5
 
 # Neurons (N number of neuron in first layer) (M number of neuron in second layer)
-L1_neu, L2_neu = 4, 8
+L1_neu, L2_neu = 4, 16
 lif_temp=[0] * L2_neu
 vth = 5
 
@@ -46,17 +32,49 @@ L1_v_thresh = 2.0
 L2_or = np.zeros([L2_neu, TMAX])
 L2_not = np.zeros([L2_neu, TMAX])
 
+L2_train=np.zeros([L2_neu, TMAX])
 
 # weights from L1 to L2 (walk)
-g_lif=np.zeros((L1_neu, L2_neu))
-g_lif[0][0] = vth+0.01  # FRK
-g_lif[0][1] = vth+0.01  # FRS
-g_lif[3][2] = vth+0.01  # BLK
-g_lif[3][3] = vth+0.01  # BLS
-g_lif[1][4] = vth+0.01  # FLK
-g_lif[1][5] = vth+0.01  # FLS
-g_lif[2][6] = vth+0.01  # BRK
-g_lif[2][7] = vth+0.01  # BRS
+train_g=np.zeros((L1_neu, L2_neu))
+
+train_g_hist = np.zeros((TMAX, L1_neu, L2_neu))
+
+# training params
+np.random.seed(seed=0)
+round_to_dp = 10    # decimal places
+scale = 1
+# loc = 5
+loc = -0.2
+# loc_high = 20
+for i in range(L1_neu):
+  for j in range(L2_neu):
+    train_g[i][j] = round(np.random.normal(loc=loc, scale=scale), round_to_dp)
+
+# lrn_rate = 1e-1
+# lrn_rate = 5e-2
+lrn_rate = 2.5e-2
+# lrn_rate = 1.25e-2
+# tau_learn = 100
+
+st_learn = 1200
+
+gait_dfn_matrix_crawl = [[1, 0,  0,  1,  1,  0,  0,  1,  0,  1,  1,  0,  0,  1,  1,  0 ],
+                        [1, 1,  0,  0,  1,  1,  0,  0,  0,  0,  1,  1,  0,  0,  1,  1 ],
+                        [0, 1,  1,  0,  0,  1,  1,  0,  1,  0,  0,  1,  1,  0,  0,  1 ],
+                        [0, 0,  1,  1,  0,  0,  1,  1,  1,  1,  0,  0,  1,  1,  0,  0 ]]
+
+gait_dfn_matrix_walk = [[1, 0,  0,  0,  1,  0,  0,  0,  0,  1,  1,  1,  0,  1,  1,  1 ],
+                        [0, 1,  0,  0,  0,  1,  0,  0,  1,  0,  1,  1,  1,  0,  1,  1 ],
+                        [0, 0,  1,  0,  0,  0,  1,  0,  1,  1,  0,  1,  1,  1,  0,  1 ],
+                        [0, 0,  0,  1,  0,  0,  0,  1,  1,  1,  1,  0,  1,  1,  1,  0 ]]
+
+conv = np.full((L1_neu,L2_neu), False, dtype=bool)
+conv_time = np.zeros((L1_neu,L2_neu))
+
+maxx = 10
+
+epsilon = 10
+
 
 # network weights
 gp_inhib = -0.3
@@ -89,12 +107,8 @@ delta = [0, 0, -1.5, -1.5]
 # Tf, Ts, Tus = 1, 5, 250
 Tf, Ts, Tus = 1, 50, 2500
 
-# vm1_0, vf1_0, vs1_0, vus1_0 = -1, 0, 0, 0
-# vm2_0, vf2_0, vs2_0, vus2_0 = -1, 0, 0, 0
-# vm3_0, vf3_0, vs3_0, vus3_0 = -1, 0, 0, 0
-# vm4_0, vf4_0, vs4_0, vus4_0 = -1, 0, 0, 0
 vm1_0, vf1_0, vs1_0, vus1_0 = -1.39888908, -1.39501677, -0.98051566, -1.53577068
-vm2_0, vf2_0, vs2_0, vus2_0 = -2.43159863, -2.4364570, -2.46313154, -1.71510205 
+vm2_0, vf2_0, vs2_0, vus2_0 = -2.43159863, -2.4364570, -2.46313154, -1.71510205
 vm3_0, vf3_0, vs3_0, vus3_0 = -3.01994828, -3.02413098, -2.84032527, -1.61383641
 vm4_0, vf4_0, vs4_0, vus4_0 = 0.85359452,  0.91745326,  0.48567456, -1.66450763
 S_0 = (vm1_0, vf1_0, vs1_0, vus1_0,
@@ -224,7 +238,7 @@ def newton(f, Jf, x0, epsilon, max_iter):
             CF = True
             # print('Found solution after',n,'iterations.')
             return [xn, CF]
-        
+
         Dfxn = Jf(xn)
         # Coovergence condition (if the norm of the ||delta||<epsilon)
         mat_mult = np.linalg.solve(Dfxn, fxn)
@@ -242,37 +256,30 @@ def newton(f, Jf, x0, epsilon, max_iter):
     return [None, CF]
 
 
-def bdf_second(ser, pipe, f=f, y0=S_0, h=3.35, ti=0, tf=TMAX):
-    while True:
-        if pipe.poll():
-            cmd = pipe.recv()
-            if cmd == 'Start':
-                print("Started network evolution")
-                time.sleep(2.0)
-                break
+def bdf_second(f=f, y0=S_0, h=3.35, ti=0, tf=TMAX):
 
     # Initializing
-    N=int((tf-ti)//h) # Number of steps 
+    N=int((tf-ti)//h) # Number of steps
     t=np.linspace(ti,tf,N) # Timestep vector
     y=np.zeros([int(len(y0)),N])
     L1_spk_out = np.zeros([L1_neu, N])
     for k in range(int(len(y0))):
         y[k][0]=y0[k]
 
-    O=1 # for 2nd BDF 
+    O=1 # for 2nd BDF
     for i in range(0,O):
-        # g, Next value function. 
+        # g, Next value function.
         def g(S):
             # Next value of state variables, vmn = vm(k+1)
             vmn1, vfn1, vsn1, vusn1, vmn2, vfn2, vsn2, vusn2, vmn3, vfn3, vsn3, vusn3, vmn4, vfn4, vsn4, vusn4 = S
-            # Next value of state variable, fvmn = f(t[i+1],S) 
+            # Next value of state variable, fvmn = f(t[i+1],S)
             fvmn1, fvfn1, fvsn1, fvusn1, fvmn2, fvfn2, fvsn2, fvusn2, fvmn3, fvfn3, fvsn3, fvusn3, fvmn4, fvfn4, fvsn4, fvusn4 = f(S)
-            
+
             return np.array([vmn1-(h*fvmn1)-y[0][i],vfn1-(h*fvfn1)-y[1][i],vsn1-(h*fvsn1)-y[2][i],vusn1-(h*fvusn1)-y[3][i],
                              vmn2-(h*fvmn2)-y[4][i],vfn2-(h*fvfn2)-y[5][i],vsn2-(h*fvsn2)-y[6][i],vusn2-(h*fvusn2)-y[7][i],
                              vmn3-(h*fvmn3)-y[8][i],vfn3-(h*fvfn3)-y[9][i],vsn3-(h*fvsn3)-y[10][i],vusn3-(h*fvusn3)-y[11][i],
                              vmn4-(h*fvmn4)-y[12][i],vfn4-(h*fvfn4)-y[13][i],vsn4-(h*fvsn4)-y[14][i],vusn4-(h*fvusn4)-y[15][i]])
-        
+
         def Jg(S):
             # next value of state variables, vmn = vm(n+1)
             Jf = df(S).reshape(16, 16)
@@ -287,7 +294,7 @@ def bdf_second(ser, pipe, f=f, y0=S_0, h=3.35, ti=0, tf=TMAX):
                 res.append(temp)
 
             return np.array(res)
-        
+
         # initial condition for Newthon's method
         x0=[y[k][i] for k in range(int(len(y0)))]
         # x0=[y[0][i],y[1][i],y[2][i],y[3][i]]
@@ -301,62 +308,21 @@ def bdf_second(ser, pipe, f=f, y0=S_0, h=3.35, ti=0, tf=TMAX):
     #============================================================================================================================
 
     commands = np.zeros(9)
+    # commands[8] = 2 # crawl
+    commands[8] = 3 # walk
     for i in range(0,N-2):
         # commands to arduino (9th element for gait selection)
         commands[:8] = 0
 
-        # 3: walk, 2: crawl
-        if pipe.poll():
-            cmd = pipe.recv()
-            if cmd == 'Crawl':
-                g_lif=np.zeros((L1_neu, L2_neu))
-                # N1 + N2
-                g_lif[0][0] = vth + 0.01  # FRK
-                g_lif[0][1] = vth + 0.01  # FRS
-                g_lif[3][0] = vth + 0.01  # FRK
-                g_lif[3][1] = vth + 0.01  # FRS
-                # N2 + N3
-                g_lif[3][2] = vth + 0.01  # BLK
-                g_lif[3][3] = vth + 0.01  # BLS
-                g_lif[1][2] = vth + 0.01  # BLK
-                g_lif[1][3] = vth + 0.01  # BLS
-                # N3 + N4
-                g_lif[1][4] = vth + 0.01  # FLK
-                g_lif[1][5] = vth + 0.01  # FLS
-                g_lif[2][4] = vth + 0.01  # FLK
-                g_lif[2][5] = vth + 0.01  # FLS
-                # N4 + N1
-                g_lif[2][6] = vth + 0.01  # BRK
-                g_lif[2][7] = vth + 0.01  # BRS
-                g_lif[0][6] = vth + 0.01  # BRK
-                g_lif[0][7] = vth + 0.01  # BRS
-                print("Started crawl")
-                commands[8] = 2
-                # time.sleep(2.0)
+        if i % 1000 == 0:
+            print(f'{i//1000}k steps done!')
+            print(train_g)
 
-            elif cmd == 'Walk':
-                g_lif=np.zeros((L1_neu, L2_neu))
-                g_lif[0][0] = vth + 0.01  # FRK
-                g_lif[0][1] = vth + 0.01  # FRS
-                g_lif[3][2] = vth + 0.01  # BLK
-                g_lif[3][3] = vth + 0.01  # BLS
-                g_lif[1][4] = vth + 0.01  # FLK
-                g_lif[1][5] = vth + 0.01  # FLS
-                g_lif[2][6] = vth + 0.01  # BRK
-                g_lif[2][7] = vth + 0.01  # BRS
-                print("Started walk")
-                commands[8] = 3
-                # time.sleep(2.0)
-
-                # else:   # idle
-                #     g_lif=np.zeros((L1_neu, L2_neu))
-                #     commands[8] = -1
-
-        # g, Next value function. 
+        # g, Next value function.
         def g(S):
             # Next value of state variables, vmn = vm(k+1)
             vmn1, vfn1, vsn1, vusn1, vmn2, vfn2, vsn2, vusn2, vmn3, vfn3, vsn3, vusn3, vmn4, vfn4, vsn4, vusn4 = S
-            # Next value of state variable, fvmn = f(t[i+1],S) 
+            # Next value of state variable, fvmn = f(t[i+1],S)
             fvmn1, fvfn1, fvsn1, fvusn1, fvmn2, fvfn2, fvsn2, fvusn2, fvmn3, fvfn3, fvsn3, fvusn3, fvmn4, fvfn4, fvsn4, fvusn4 = f(S)
             cf1 = (2/3)
             cf2 = (4/3)
@@ -365,7 +331,7 @@ def bdf_second(ser, pipe, f=f, y0=S_0, h=3.35, ti=0, tf=TMAX):
                              vmn2-(cf1*h*fvmn2)-cf2*y[4][i+1]+cf3*y[4][i],vfn2-(cf1*h*fvfn2)-cf2*y[5][i+1]+cf3*y[5][i],vsn2-(cf1*h*fvsn2)-cf2*y[6][i+1]+cf3*y[6][i],vusn2-(cf1*h*fvusn2)-cf2*y[7][i+1]+cf3*y[7][i],
                              vmn3-(cf1*h*fvmn3)-cf2*y[8][i+1]+cf3*y[8][i],vfn3-(cf1*h*fvfn3)-cf2*y[9][i+1]+cf3*y[9][i],vsn3-(cf1*h*fvsn3)-cf2*y[10][i+1]+cf3*y[10][i],vusn3-(cf1*h*fvusn3)-cf2*y[11][i+1]+cf3*y[11][i],
                              vmn4-(cf1*h*fvmn4)-cf2*y[12][i+1]+cf3*y[12][i],vfn4-(cf1*h*fvfn4)-cf2*y[13][i+1]+cf3*y[13][i],vsn4-(cf1*h*fvsn4)-cf2*y[14][i+1]+cf3*y[14][i],vusn4-(cf1*h*fvusn4)-cf2*y[15][i+1]+cf3*y[15][i]])
-            
+
 
         def Jg(S):
             # next value of state variables, vmn = vm(n+1)
@@ -383,7 +349,7 @@ def bdf_second(ser, pipe, f=f, y0=S_0, h=3.35, ti=0, tf=TMAX):
                 res.append(temp)
 
             return np.array(res)
-        
+
         # initial condition for Newthon's method
         x0=[y[k][i+1] for k in range(int(len(y0)))]
         #x0=[y[0][i],y[1][i],y[2][i],y[3][i],y[4][i],y[5][i],y[6][i],y[7][i],y[8][i],y[9][i],y[10][i],y[11][i],y[12][i],y[13][i],y[14][i],y[15][i]]
@@ -395,23 +361,35 @@ def bdf_second(ser, pipe, f=f, y0=S_0, h=3.35, ti=0, tf=TMAX):
                 # thresholding to send spikes to L2
                 if k % 4 == 0 and y[k][i + 2] > L1_v_thresh:
                     L1_spk_out[k//4][i+2] = 1
+                    # print(f'Neu {k//4} spiked')
+
 
             # L2 LIF calculation
             for l in range(L2_neu):  # L2
                 for k in range(L1_neu): # L1
-                    lif_temp[l] += g_lif[k][l] * L1_spk_out[k][i]
+                    lif_temp[l] += train_g[k][l] * L1_spk_out[k][i]
                 if lif_temp[l] > vth:
+                    # stdp
+                    if l < 8:
+                      L2_train[l][i] = 1
+                    else:
+                      L2_train[l][i] = 0
                     # or gate
                     L2_or[l][i] = 1
                     lif_temp[l] = 0
                     # not gates
                     for m in range(L2_neu):
-                        if m == l or np.array_equal(g_lif[:, m], g_lif[:, l]):
+                        if m == l or np.array_equal(train_g[:, m], train_g[:, l]):
                             L2_not[m][i] = 0
                         else:
                             L2_not[m][i] = 1
 
                 else:
+                    # stdp
+                    if l < 8:
+                      L2_train[l][i] = 0
+                    else:
+                      L2_train[l][i] = 1
                     # or gate
                     L2_or[l][i] = lif_temp[l]
                     # not gates
@@ -420,35 +398,75 @@ def bdf_second(ser, pipe, f=f, y0=S_0, h=3.35, ti=0, tf=TMAX):
                             continue
                         L2_not[m][i] = 0
 
+
+            # STDP code
+            if i >= st_learn:
+                for cur_neu in range(L1_neu):
+                    for conn in range(L2_neu):
+                        # if gait_dfn_matrix_crawl[cur_neu][conn] == 1 and \
+                        #     not conv[cur_neu][conn]:
+                        if gait_dfn_matrix_walk[cur_neu][conn] == 1 and \
+                            not conv[cur_neu][conn]:
+                            spk_t = L1_spk_out[cur_neu][i]
+                            if spk_t == 1:
+                                # print("Plus lambda")
+                                # for k in range(10):
+                                if np.any(L2_train[conn][i-epsilon:i]) == 1:
+                                    # print(f'synapse {cur_neu}, {conn} converged to \
+                                    #         {train_g[cur_neu][conn]}!')
+                                    conv[cur_neu][conn] = True
+                                    conv_time[cur_neu][conn] = i
+                                    train_g_hist[i][cur_neu][conn] = train_g[cur_neu][conn]
+                                    # continue
+                                train_g[cur_neu][conn] = round(min(train_g[cur_neu][conn]+lrn_rate, maxx),round_to_dp)
+
+                        # elif gait_dfn_matrix_crawl[cur_neu][conn] == 0:
+                        elif gait_dfn_matrix_walk[cur_neu][conn] == 0:
+                            spk_t = L1_spk_out[cur_neu][i]
+                            if spk_t == 1:
+                                # print(f"Minus lambda {cur_neu}, {conn}")
+                                # for k in range(10):
+                                if np.all(L2_train[conn][i-epsilon:i]) == 0:
+                                    # print(f'synapse {cur_neu}, {conn} converged to \
+                                    #         {train_g[cur_neu][conn]}!')
+                                    conv[cur_neu][conn] = True
+                                    conv_time[cur_neu][conn] = i
+                                    train_g_hist[i][cur_neu][conn] = train_g[cur_neu][conn]
+                                    # continue
+                                train_g[cur_neu][conn] = round(max(train_g[cur_neu][conn]-lrn_rate, 0),round_to_dp)
+
+                        train_g_hist[i][cur_neu][conn] = train_g[cur_neu][conn]
+
+
             # send motor commands
-            # 0: FRK, 1: FRS, 2: BLK, 3: BLS, 4: FLK, 5: FLS, 6: BRK, 7: BRS (L2 mapping)            
+            # 0: FRK, 1: FRS, 2: BLK, 3: BLS, 4: FLK, 5: FLS, 6: BRK, 7: BRS (L2 mapping)
             if L2_or[5][i] == 1:   # FLS_burst
                 commands[0] = 1
-                spikes_or_fl.append(i)
+                # spikes_or_fl.append(i)
             elif L2_not[5][i] == 1:     # FLS_non_burst
                 commands[0] = 1
-                spikes_not_fl.append(i)
+                # spikes_not_fl.append(i)
 
             if L2_or[1][i] == 1:    # FRS_burst
                 commands[1] = 1
-                spikes_or_fr.append(i)
+                # spikes_or_fr.append(i)
             elif L2_not[1][i] == 1:     # FRS_non_burst
                 commands[1] = 1
-                spikes_not_fr.append(i)
+                # spikes_not_fr.append(i)
 
             if L2_or[7][i] == 1:    # BRS_burst
                 commands[2] = 1
-                spikes_or_br.append(i)
+                # spikes_or_br.append(i)
             elif L2_not[7][i] == 1:     # BRS_non_burst
                 commands[2] = 1
-                spikes_not_br.append(i)
+                # spikes_not_br.append(i)
 
             if L2_or[3][i] == 1:   # BLS_burst
                 commands[3] = 1
-                spikes_or_bl.append(i)
+                # spikes_or_bl.append(i)
             elif L2_not[3][i]== 1:     # BLS_non_burst
                 commands[3] = 1
-                spikes_not_bl.append(i)
+                # spikes_not_bl.append(i)
 
             if L2_or[4][i] == 1:  # FLK_burst
                 commands[4] = 1
@@ -481,13 +499,8 @@ def bdf_second(ser, pipe, f=f, y0=S_0, h=3.35, ti=0, tf=TMAX):
             print('No solution found')
 
 
-        if i % 1000 == 0:
-            # save spikes data
-            np.savetxt(spikes_or_fr_file, spikes_or_fr)
-            np.savetxt(spikes_not_fr_file, spikes_not_fr)
-            np.savetxt(spikes_or_fl_file, spikes_or_fl)
-            np.savetxt(spikes_not_fl_file, spikes_not_fl)
-            np.savetxt(spikes_or_br_file, spikes_or_br)
-            np.savetxt(spikes_not_br_file, spikes_not_br)
-            np.savetxt(spikes_or_bl_file, spikes_or_bl)
-            np.savetxt(spikes_not_bl_file, spikes_not_bl)
+st = time.time()
+bdf_second()
+end = time.time()
+
+print('Time taken: ', end-st)

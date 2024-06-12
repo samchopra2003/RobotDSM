@@ -143,18 +143,6 @@ def main(ser, cam_pipe, bdf_pipe):
     # for t in tqdm(range(steps, TMAX)):
     for t in range(steps, TMAX):
         global state_command
-        # if t == 10:
-        #     state_command = 'l'
-        #     state_name = 'w'
-        # if t == 15:
-        #     state_command = 'l'
-        #     state_name = 'c'
-        if t == 20:
-            state_command = 's'  
-        # elif t == 500: # artificial
-        # elif t in crawl_times: # artificial
-        #     current_state = crawl_state
-        #     current_state_id = crawl_state.get_pattern_id()
 
         # User input command
         # global state_command
@@ -177,19 +165,6 @@ def main(ser, cam_pipe, bdf_pipe):
             current_state = idle_state
             current_state_id = idle_state.get_pattern_id()
             state_command = ''
-        elif state_command == 'd':
-            print(f'Obstacle detected, I think its time for crawl at time {t}!')
-            current_state = crawl_state
-            current_state_id = crawl_state.get_pattern_id()
-            state_command = ''
-            crawl_times.append(t)
-        elif state_command == 'e':
-            print(f'I think its time for walk at time {t}!')
-            current_state = walk_state
-            current_state_id = walk_state.get_pattern_id()
-            state_command = ''
-            crawl_times.append(t)
-            bdf_pipe.send("Walk")
         elif state_command == 'g':
             cam_pipe.send('save_img')
             state_command = ''

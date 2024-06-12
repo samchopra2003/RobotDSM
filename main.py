@@ -42,7 +42,7 @@ N_neurons = 4
 
 state_command = ''
 state_name = ''
-spikes_per_burst = 3
+# spikes_per_burst = 3
 
 log_freq = 500
 

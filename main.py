@@ -37,8 +37,7 @@ crawl_spike_times = [[0,100,200,300,400,500,600,700],[0,100,
 idle_weights = [[0, 0, 0, 0], [0, 0, 0, 0],
                 [0, 0, 0, 0], [0, 0, 0, 0]]
 
-# TMAX = 1000000
-TMAX = 3500
+TMAX = 1000000
 N_neurons = 4
 
 state_command = ''
@@ -115,9 +114,6 @@ def main(ser, cam_pipe, bdf_pipe):
     available_states = [idle_state.get_pattern_id(), 
         learn_state.get_pattern_id(), walk_state.get_pattern_id(),
         crawl_state.get_pattern_id()]
-    
-    # walk_state = None
-    # crawl_state = None
 
     pattern_learner = PatternLearner()
 
@@ -132,8 +128,7 @@ def main(ser, cam_pipe, bdf_pipe):
 
     keep_crawling_init_t = 0
     keep_crawling = False
-    crawl_dur = 8000
-    # crawl_dur = 1000
+    crawl_dur = 3000
 
     start_walk_transition_t = 0
     keep_walking = False
@@ -239,15 +234,7 @@ def main(ser, cam_pipe, bdf_pipe):
                 current_state_id = idle_state.get_pattern_id()
                 current_state = idle_state
 
-            else:   #TODO: Improve
-                # print("NEW STATE")
-                # new_spike_times, curr_conn = np.loadtxt(pattern_file)
-                # new_weights, V_state = pattern_learner.learn(new_spike_times,
-                #         curr_conn, ser, new_pattern_id, use_bdf=True)
-                # new_state = AbstractState(pattern_id=new_pattern_id,
-                #         weights=new_weights, V_state=V_state)
-                # available_states.append(new_pattern_id)
-                # new_pattern_id += 1
+            else:   # TODO: Add New State Logic
                 pass
 
 
@@ -257,39 +244,15 @@ def main(ser, cam_pipe, bdf_pipe):
         elif autonomous:
             bdf_pipe.send("Start")
 
-            if ser.in_waiting > 0:
-                # Read the incoming bytes
-                data = ser.read(2)  # Read 2 bytes
-                # Combine the bytes to form the original integer
-                number = (data[0] << 8) | data[1]
-                print(f"Received integer: {number}")
-
-            # if t == 30:
-            #     cam_pipe.send("Init")
-            # elif t == 500:
-            #     cam_pipe.send("Mid")
-
-            # one_hot_encoded = np.zeros(5)   # [neu1, neu2, neu3, neu4, motorCmdFlag]
-            # spiked_neurons = np.zeros(4)
+            # Read from arduino
+            # if ser.in_waiting > 0:
+            #     # Read the incoming bytes
+            #     data = ser.read(2)  # Read 2 bytes
+            #     # Combine the bytes to form the original integer
+            #     number = (data[0] << 8) | data[1]
+            #     print(f"Received integer: {number}")
             
-            # if t % steps == 0 :  # evolve network every t steps as we are computing for t steps
-                #print('From main: ' ,current_state.get_pattern_id())
-                # steps_spiked_neurons = network.evolve(t, current_state, use_bdf=True, steps=steps)
-            
-            # spiked_neurons = steps_spiked_neurons[t % steps]    # 2%2 = 0, 3%2 = 1
-            
-            # print("Neurons spiked main= ", spiked_neurons)
-
-            # move once burst finishes
-            # for cur_neu in range(N_neurons):
-            #     if spiked_neurons[cur_neu] == 1:
-            #         actual_spike_ctr[cur_neu] += 1
-
-            #     if actual_spike_ctr[cur_neu] >= spikes_per_burst:
-            #         actual_spike_ctr[cur_neu] = 0
-            #         one_hot_encoded[cur_neu] = 1
-            
-            # poll gyro
+            # TODO: Use gyro eventually
             # if gyro_pipe.poll():
             #     x, y, z = gyro_pipe.recv()
             #     x -= x_init
@@ -298,15 +261,12 @@ def main(ser, cam_pipe, bdf_pipe):
             #     x_list.append(x)
             #     y_list.append(y)
             #     z_list.append(z)
-
-
             # if len(x_list) >= 5:
             #     # if not check_gyro_balance(x_list, y_list, z_list):
             #     if not check_gyro_balance(x_list[-5:], y_list[-5:], z_list[-5:]):
             #         on_balance = False
             #     else:
             #         on_balance = True
-
                 # write data
                 # if len(x_list) == 5:
                 #     with open(angular_velo_x_file, "w") as file:
@@ -335,12 +295,10 @@ def main(ser, cam_pipe, bdf_pipe):
             #poll camera 
             if cam_pipe.poll():
                 no_obstacle = not cam_pipe.recv() # obstacle present
+                # write obstacle detected time
                 # cam_event_times.append(t)
                 # if len(cam_event_times) == 1:
-                #     with open(camera_event_file, "w") as file:
-                #         file.write(str(cam_event_times[-1]) + '\n')
-                # else:
-                #     with open(camera_event_file, "a") as file:
+                #     with open('data/obs_detect.txt', "w") as file:
                 #         file.write(str(cam_event_times[-1]) + '\n')
             else:
                 no_obstacle = True
@@ -348,63 +306,35 @@ def main(ser, cam_pipe, bdf_pipe):
             # WALK
             if current_state_id == walk_state.get_pattern_id():
                 if t % log_freq == 0:
-                    print(f"State: WALK, Timestep: {t}") 
-                    # gyro_pipe.send("Finished learning")
-            # if current_state_id == idle_state.get_pattern_id():
-            # if current_state_id == 10:
-                # print("State: WALK at timestep ", t)
-                if not gait_changed or t in crawl_times:
+                    print(f"State: WALK, Timestep: {t}")
+
+                if not gait_changed:
                     gait_changed = True
                     bdf_pipe.send("Walk")
                     # cam_pipe.send("Walk")
                     print("Gait change to Walk!")
 
-                # allows for transition time to walk
-                if first_walk:
-                    keep_walking = False
-                elif not first_walk and t > (start_walk_transition_t +
-                        walk_transition_dur):
-                    keep_walking = False
-                else:
-                    keep_walking = True
-
-
-                # if not on_balance or not no_obstacle and \
-                #     not keep_walking:
-                #     current_state_id = idle_state.get_pattern_id()
-                #     idle_state = idle_state
-                #     first_walk = False
-                #     print(f"Obstacle detected at {t}")
-                #     with open('data/obs_detect.txt', 'w') as file:
-                #         file.write(str(t) + '\n')
+                if not on_balance or not no_obstacle:
+                    current_state_id = idle_state.get_pattern_id()
+                    idle_state = idle_state
 
             # CRAWL
             elif current_state_id == crawl_state.get_pattern_id():
-            # elif current_state_id == idle_state.get_pattern_id():
                 if t % log_freq == 0:
                     print(f"State: CRAWL, Timestep: {t}")
-                if not gait_changed or t in crawl_times:
-                # if not gait_changed:
+                if not gait_changed:
                     keep_crawling_init_t = t
                     keep_crawling = True
                     gait_changed = True
                     bdf_pipe.send("Crawl")
                     # cam_pipe.send("Crawl")
                     print("Gait change to Crawl!")
-                # network.set_weights(crawl_state.get_weights())
                 if (on_balance and not no_obstacle) or keep_crawling:
                     if not keep_crawling: #First time obstacle detection
                         keep_crawling_init_t = t
                         keep_crawling = True
                     if t > keep_crawling_init_t + crawl_dur: #when crawl_dur runs out
                         keep_crawling = False
-                    # if not np.all(one_hot_encoded[:4] == 0):
-                    #     #print("LOL = ", one_hot_encoded)
-                    #     one_hot_encoded[4] = 1
-                    #     data_str = ','.join(map(str, one_hot_encoded.astype(int))) + '\n'
-                    #     ser.write(data_str.encode())
-                    #     time.sleep(0.1)
-                # else:
 
                 if (not on_balance or no_obstacle) and not keep_crawling:
                     current_state_id = idle_state.get_pattern_id()
@@ -412,28 +342,16 @@ def main(ser, cam_pipe, bdf_pipe):
 
             # IDLE
             if current_state_id == idle_state.get_pattern_id():
-                # if t % log_freq == 0:
                 print(f"State: IDLE, Timestep: {t}")
                 cam_pipe.send("Idle")
-                # network.set_weights(idle_state.get_weights())
 
-                # time.sleep(10)
-
-                if on_balance and no_obstacle and \
-                    walk_pattern_id in available_states:
+                if on_balance and no_obstacle and walk_pattern_id in available_states:
                         # transition to WALK
                         gait_changed = False
                         current_state_id = walk_state.get_pattern_id()
                         current_state = walk_state
-
-                        if not first_walk:
-                            start_walk_transition_t = t
-                            keep_walking = True
-                            pass
-
                     
-                elif on_balance and not no_obstacle and \
-                    crawl_pattern_id in available_states:
+                elif on_balance and not no_obstacle and crawl_pattern_id in available_states:
                         # transition to CRAWL
                         gait_changed = False
                         current_state_id = crawl_state.get_pattern_id()
@@ -442,9 +360,7 @@ def main(ser, cam_pipe, bdf_pipe):
                         keep_crawling_init_t = t
                         keep_crawling = True
 
-
         else:
-            # time.sleep(0.2)
             print("State: IDLE")
 
     cam_pipe.send('done')
@@ -452,13 +368,40 @@ def main(ser, cam_pipe, bdf_pipe):
 
 
 # @profile
-def run():
+# def run():
+#     parent_conn_cam, child_conn_cam = Pipe()
+#     parent_conn_bdf, child_conn_bdf = Pipe()
+#
+#     ser = serial.Serial('/dev/ttyUSB0', 9600)
+#     ser.reset_input_buffer()
+#
+#     # p1 = Process(target=main, args=(ser, parent_conn_gyro, parent_conn_cam, parent_conn_bdf))
+#     p1 = Process(target=main, args=(ser, parent_conn_cam, parent_conn_bdf))
+#     # p2 = Process(target=run_gyro, args=(child_conn_gyro,))
+#     p3 = Process(target=run_cam, args=(child_conn_cam,))
+#     p4 = Process(target=bdf_second, args=(ser, child_conn_bdf,))
+#
+#     p1.start()
+#     # p2.start()
+#     p3.start()
+#     p4.start()
+#
+#     p1.join()
+#     # p2.join()
+#     p3.join()
+#     p4.join()
+
+
+
+if __name__ == '__main__':
+    parent_conn_gyro, child_conn_gyro = Pipe()
     parent_conn_cam, child_conn_cam = Pipe()
     parent_conn_bdf, child_conn_bdf = Pipe()
 
     ser = serial.Serial('/dev/ttyUSB0', 9600)
     ser.reset_input_buffer()
     
+    start = time.time()
     # p1 = Process(target=main, args=(ser, parent_conn_gyro, parent_conn_cam, parent_conn_bdf))
     p1 = Process(target=main, args=(ser, parent_conn_cam, parent_conn_bdf))
     # p2 = Process(target=run_gyro, args=(child_conn_gyro,))
@@ -475,41 +418,13 @@ def run():
     p3.join()
     p4.join()
 
+    print("Total Execution time = ", time.time()-start)
+    print("All processes are done.")
 
-
-if __name__ == '__main__':
-    # parent_conn_gyro, child_conn_gyro = Pipe()
-    # parent_conn_cam, child_conn_cam = Pipe()
-    # parent_conn_bdf, child_conn_bdf = Pipe()
-
-    # ser = serial.Serial('/dev/ttyUSB0', 9600)
-    # ser.reset_input_buffer()
-    
     # start = time.time()
-    # # p1 = Process(target=main, args=(ser, parent_conn_gyro, parent_conn_cam, parent_conn_bdf))
-    # p1 = Process(target=main, args=(ser, parent_conn_cam, parent_conn_bdf))
-    # # p2 = Process(target=run_gyro, args=(child_conn_gyro,))
-    # p3 = Process(target=run_cam, args=(child_conn_cam,))
-    # p4 = Process(target=bdf_second, args=(ser, child_conn_bdf,))
-
-    # p1.start()
-    # # p2.start()
-    # p3.start()
-    # p4.start()
-    
-    # p1.join()
-    # # p2.join()
-    # p3.join()
-    # p4.join()
-
-    # print("Total Execution time = ", time.time()-start)
-
-    # print("All processes are done.")
-
-    start = time.time()
     # profiler = LineProfiler()
     # profiler.add_function(run)
-    run()
+    # run()
     # profiler.run('run()')
     # profiler.print_stats()
-    print("Total Execution time = ", time.time()-start)
+    # print("Total Execution time = ", time.time()-start)

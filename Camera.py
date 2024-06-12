@@ -59,17 +59,7 @@ class Camera:
         # center_window = frame[center_y:center_y+window_size, center_x:center_x+window_size]
 
         # blurred = cv2.GaussianBlur(frame, (5, 5), 0)
-        binary_edges = cv2.Canny(frame, 20, 150) 
-        # binary_edges = cv2.threshold(edges, 0, 255, cv2.THRESH_BINARY)[1]
-
-        # cv2.imshow('Canny output', binary_edges)
-        # k = cv2.waitKey(20)
-        # bottom_frame = binary_edges[binary_edges.shape[0] // 2 :
-        #                 binary_edges.shape[0], :]
-
-        # top_frame = binary_edges[0: binary_edges.shape[0] // 2 , :]
-        
-        # cv2.imshow('binary_edges', binary_edges)
+        binary_edges = cv2.Canny(frame, 20, 150)
 
 
         # uncomment these for visualization
@@ -79,23 +69,18 @@ class Camera:
 
         # print("Edges: ", cv2.countNonZero(binary_edges))
 
-        # if cv2.countNonZero(top_frame) > 0:
-        #     # print("OBSTACLE DETECTED")
-        #     return True
-
         num_edges = cv2.countNonZero(binary_edges)
         # print("Num edges = ", num_edges)
 
-        # if num_edges > 300:
-        # if num_edges > 1000:
-        #     if not os.path.exists('data/obs_detect.png'):
-        #         cv2.imwrite('data/obs_detect.png', binary_edges)
+        if num_edges > 1000:
+            if not os.path.exists('data/obs_detect.png'):
+                cv2.imwrite('data/obs_detect.png', binary_edges)
 
-        #         with open(num_edges_file, 'a') as file:
-        #             file.write('obs_detect: ' + str(num_edges) + '\n')
+                with open(num_edges_file, 'a') as file:
+                    file.write('obs_detect: ' + str(num_edges) + '\n')
 
-        #     print("OBSTACLE DETECTED")
-        #     return True
+            # print("OBSTACLE DETECTED")
+            return True
 
         if save_img:
             cv2.imwrite('data/'+fname+'_og.png', frame)

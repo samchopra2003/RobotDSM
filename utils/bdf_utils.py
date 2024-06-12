@@ -21,8 +21,7 @@ spikes_or_bl = []
 spikes_not_bl = []
 
 
-# TMAX = 1000000
-TMAX = 14000
+TMAX = 1000000
 
 def sf(x,b,ds):
     k=b*(x-ds)
@@ -52,12 +51,12 @@ L2_not = np.zeros([L2_neu, TMAX])
 g_lif=np.zeros((L1_neu, L2_neu))
 g_lif[0][0] = vth+0.01  # FRK
 g_lif[0][1] = vth+0.01  # FRS
-g_lif[1][2] = vth+0.01  # BLK
-g_lif[1][3] = vth+0.01  # BLS
-g_lif[2][4] = vth+0.01  # FLK
-g_lif[2][5] = vth+0.01  # FLS
-g_lif[3][6] = vth+0.01  # BRK
-g_lif[3][7] = vth+0.01  # BRS
+g_lif[3][2] = vth+0.01  # BLK
+g_lif[3][3] = vth+0.01  # BLS
+g_lif[1][4] = vth+0.01  # FLK
+g_lif[1][5] = vth+0.01  # FLS
+g_lif[2][6] = vth+0.01  # BRK
+g_lif[2][7] = vth+0.01  # BRS
 
 # network weights
 gp_inhib = -0.3
@@ -247,11 +246,10 @@ def bdf_second(ser, pipe, f=f, y0=S_0, h=3.35, ti=0, tf=TMAX):
     while True:
         if pipe.poll():
             cmd = pipe.recv()
-            if cmd == 'Start': 
+            if cmd == 'Start':
                 print("Started network evolution")
                 time.sleep(2.0)
                 break
-
 
     # Initializing
     N=int((tf-ti)//h) # Number of steps 
@@ -306,10 +304,10 @@ def bdf_second(ser, pipe, f=f, y0=S_0, h=3.35, ti=0, tf=TMAX):
     for i in range(0,N-2):
         # commands to arduino (9th element for gait selection)
         commands[:8] = 0
+
         # 3: walk, 2: crawl
         if pipe.poll():
             cmd = pipe.recv()
-            global g_lif
             if cmd == 'Crawl':
                 g_lif=np.zeros((L1_neu, L2_neu))
                 # N1 + N2
@@ -317,21 +315,37 @@ def bdf_second(ser, pipe, f=f, y0=S_0, h=3.35, ti=0, tf=TMAX):
                 g_lif[0][1] = vth+0.01  # FRS
                 g_lif[1][0] = vth+0.01  # FRK
                 g_lif[1][1] = vth+0.01  # FRS
+                g_lif[0][0] = vth + 0.01  # FRK
+                g_lif[0][1] = vth + 0.01  # FRS
+                g_lif[3][0] = vth + 0.01  # FRK
+                g_lif[3][1] = vth + 0.01  # FRS
                 # N2 + N3
                 g_lif[1][2] = vth+0.01  # BLK
                 g_lif[1][3] = vth+0.01  # BLS
                 g_lif[2][2] = vth+0.01  # BLK
                 g_lif[2][3] = vth+0.01  # BLS
+                g_lif[3][2] = vth + 0.01  # BLK
+                g_lif[3][3] = vth + 0.01  # BLS
+                g_lif[1][2] = vth + 0.01  # BLK
+                g_lif[1][3] = vth + 0.01  # BLS
                 # N3 + N4
                 g_lif[2][4] = vth+0.01  # FLK
                 g_lif[2][5] = vth+0.01  # FLS
                 g_lif[3][4] = vth+0.01  # FLK
                 g_lif[3][5] = vth+0.01  # FLS
+                g_lif[1][4] = vth + 0.01  # FLK
+                g_lif[1][5] = vth + 0.01  # FLS
+                g_lif[2][4] = vth + 0.01  # FLK
+                g_lif[2][5] = vth + 0.01  # FLS
                 # N4 + N1
                 g_lif[3][6] = vth+0.01  # BRK
                 g_lif[3][7] = vth+0.01  # BRS
                 g_lif[1][6] = vth+0.01  # BRK
                 g_lif[1][7] = vth+0.01  # BRS
+                g_lif[2][6] = vth + 0.01  # BRK
+                g_lif[2][7] = vth + 0.01  # BRS
+                g_lif[0][6] = vth + 0.01  # BRK
+                g_lif[0][7] = vth + 0.01  # BRS
                 print("Started crawl")
                 commands[8] = 2
                 # time.sleep(2.0)
@@ -346,13 +360,21 @@ def bdf_second(ser, pipe, f=f, y0=S_0, h=3.35, ti=0, tf=TMAX):
                 g_lif[2][5] = vth+0.01  # FLS
                 g_lif[3][6] = vth+0.01  # BRK
                 g_lif[3][7] = vth+0.01  # BRS
+                g_lif[0][0] = vth + 0.01  # FRK
+                g_lif[0][1] = vth + 0.01  # FRS
+                g_lif[3][2] = vth + 0.01  # BLK
+                g_lif[3][3] = vth + 0.01  # BLS
+                g_lif[1][4] = vth + 0.01  # FLK
+                g_lif[1][5] = vth + 0.01  # FLS
+                g_lif[2][6] = vth + 0.01  # BRK
+                g_lif[2][7] = vth + 0.01  # BRS
                 print("Started walk")
                 commands[8] = 3
                 # time.sleep(2.0)
 
-            # else:   # idle
-            #     g_lif=np.zeros((L1_neu, L2_neu))
-            #     commands[8] = -1
+                # else:   # idle
+                #     g_lif=np.zeros((L1_neu, L2_neu))
+                #     commands[8] = -1
 
         # g, Next value function. 
         def g(S):

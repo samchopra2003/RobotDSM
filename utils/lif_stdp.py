@@ -4,9 +4,7 @@ import os
 import serial
 import matplotlib.pyplot as plt
 
-# TMAX = 1000000
-TMAX = 40000
-# TMAX = 5000
+TMAX = 1000000
 
 ser = serial.Serial('/dev/ttyUSB0', 9600)
 ser.reset_input_buffer()

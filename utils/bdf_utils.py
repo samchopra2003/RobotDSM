@@ -304,7 +304,6 @@ def bdf_second(ser, pipe, f=f, y0=S_0, h=3.35, ti=0, tf=TMAX):
     for i in range(0,N-2):
         # commands to arduino (9th element for gait selection)
         commands[:8] = 0
-
         # 3: walk, 2: crawl
         if pipe.poll():
             cmd = pipe.recv()
@@ -393,7 +392,9 @@ def bdf_second(ser, pipe, f=f, y0=S_0, h=3.35, ti=0, tf=TMAX):
             for k in range(int(len(y0))):
                 y[k][i+2] = root[0][k]
                 # thresholding to send spikes to L2
-                if k % 4 == 0 and y[k][i + 2] > L1_v_thresh:
+                # if k % 4 == 0 and y[k][i + 2] > L1_v_thresh:
+                #     L1_spk_out[k//4][i+2] = 1
+                if k % 4 == 0 and y[k][i + 2] > L1_v_thresh and y[k][i + 1] < L1_v_thresh:
                     L1_spk_out[k//4][i+2] = 1
 
             # L2 LIF calculation
@@ -408,12 +409,14 @@ def bdf_second(ser, pipe, f=f, y0=S_0, h=3.35, ti=0, tf=TMAX):
                     for m in range(L2_neu):
                         if m == l or np.array_equal(g_lif[:, m], g_lif[:, l]):
                             L2_not[m][i] = 0
-                        else:
+                        # else:
+                        elif L2_or[m][i] != 1:
                             L2_not[m][i] = 1
 
                 else:
                     # or gate
-                    L2_or[l][i] = lif_temp[l]
+                    # L2_or[l][i] = lif_temp[l]
+                    L2_or[l][i] = 0
                     # not gates
                     for m in range(L2_neu):
                         if m == l or L2_not[m][i] == 1:
